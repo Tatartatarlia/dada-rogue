@@ -1,32 +1,58 @@
-# React + TypeScript + Vite
+# 达达利亚的行囊
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+一款浏览器里的背包肉鸽。达达利亚站在左边自动扔出背包里的武器，敌人从右边走来。开局先逛商店，把武器放进背包，再一波一波打下去。
 
-Currently, two official plugins are available:
+在线试玩：[https://tatartatarlia.github.io/dada-rogue/](https://tatartatarlia.github.io/dada-rogue/)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 怎么玩
 
-## React Compiler
+- 开局是 3×3 的空背包。商店每次给出 3 件武器，以及 1 格或 2 格相连的空格子。
+- 武器可以先拖到背包任意位置。每件武器下方有旋转按钮。压住别的武器或超出背包时，不能进入下一波。
+- 背包里的武器可以拖回商店放回去。商店每波只能刷新一次，已经放进背包的武器会留下。
+- 空格子贴着背包任意一边放下就能扩容。一次给两格时，它们是连在一起的。
+- 两件相同等级的武器叠在一起，会合成一件高一级的武器。高一级武器的攻击力略低于原先两件加在一起。
+- 打完一波会回满生命，再进商店。生命归零，或在商店、战斗里选择结算，都会记下这次到达的波数，并和历史最高比较。
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+武器都能旋转。占格如下：
 
-## Expanding the Oxlint configuration
+| 武器 | 占格 | 特点 |
+| --- | --- | --- |
+| 斧头 | 3 格，上排 2、下排 1 | 出手勤，单下不算重 |
+| 飞镖 | 1 格 | 出手最快，伤害最低 |
+| 短剑 | 竖着 2 格 | 连斩，伤害偏低 |
+| 燃烧瓶 | 竖着 2 格 | 命中后再燃烧一段时间 |
+| 炸弹 | 2×2 | 单下最高，间隔最慢，能溅射 |
+| 虚弱药剂 | 3 格，上排 1、下排 2 | 命中后降低移速 |
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+商店武器会随波数变强：1–3 波全是 1 级，之后逐渐出现 2 级、3 级，13 波起偶尔出现 4 级。
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+## 本地运行
+
+需要 Node.js 20 或更高版本。
+
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+浏览器打开终端里给出的地址。常用命令：
+
+```bash
+npm run build   # 类型检查并打包到 dist
+npm run preview # 预览打包结果
+npm run lint
+```
+
+## 改数值
+
+伤害、生命、敌人数量、商店等级和画面尺寸都在 [`src/config.ts`](src/config.ts) 顶部的 `CONFIG` 里，每项有中文注释。武器的攻击间隔不要超过 `maxAttackInterval`（0.5 秒）。
+
+## 部署
+
+推送到 `main` 后，[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) 会构建并发布到 GitHub Pages。
+
+仓库需要先打开 Pages，并把 **Source** 设为 **GitHub Actions**：
+
+[https://github.com/Tatartatarlia/dada-rogue/settings/pages](https://github.com/Tatartatarlia/dada-rogue/settings/pages)
+
+打包时的资源路径是 `/dada-rogue/`，对应上面的项目站点地址。本地开发不受影响。
