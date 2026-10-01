@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CONFIG } from './config'
 import type { Cell, Expansion, Weapon } from './types'
-import { createShop, initialCells } from './game/logic'
+import { createShop, initialCells, shopOfferUsed } from './game/logic'
 import { play, setMuted as applyMute } from './game/audio'
 import { ShopScreen } from './components/ShopScreen'
 import { BattleView } from './components/BattleView'
@@ -43,6 +43,7 @@ export default function App() {
   const [hero, setHero] = useState<HTMLImageElement | null>(null)
   const [result, setResult] = useState<Result | null>(null)
   const [shopRefreshed, setShopRefreshed] = useState(false)
+  const [shopOffer, setShopOffer] = useState<{ id: string; level: number }[]>([])
 
   useEffect(() => {
     applyMute(muted)
@@ -99,6 +100,7 @@ export default function App() {
     setWeapons(shop.weapons)
     setExpansion(shop.expansion)
     setShopRefreshed(false)
+    setShopOffer(shop.weapons.map((weapon) => ({ id: weapon.id, level: weapon.level })))
     setResult(null)
     setPhase('shop')
   }
@@ -114,15 +116,19 @@ export default function App() {
     setWeapons((current) => [...current.filter((weapon) => weapon.where === 'bag'), ...shop.weapons])
     setExpansion(shop.expansion)
     setShopRefreshed(false)
+    setShopOffer(shop.weapons.map((weapon) => ({ id: weapon.id, level: weapon.level })))
     setWave(nextWave)
     setPhase('shop')
   }
 
+  const offerUsed = shopOfferUsed(weapons, shopOffer)
+
   function refreshShop() {
-    if (shopRefreshed) return
+    if (shopRefreshed || offerUsed) return
     const shop = createShop(wave)
     setWeapons((current) => [...current.filter((weapon) => weapon.where === 'bag'), ...shop.weapons])
     setExpansion((current) => (current ? shop.expansion : null))
+    setShopOffer(shop.weapons.map((weapon) => ({ id: weapon.id, level: weapon.level })))
     setShopRefreshed(true)
   }
 
@@ -150,6 +156,7 @@ export default function App() {
               <li>开局先进入商店，把武器拖进 3×3 的背包。</li>
               <li>武器可以先放在背包任意位置，点下方的旋转调整方向。没放进格子就不能进入下一波。拖回商店可以放回去。</li>
               <li>两件相同等级的武器可以合成一件高一级的武器，但高一级武器的攻击力会略低于原先两件加在一起，所以请合理规划背包。</li>
+              <li>只要商店内任何武器被装进背包，或拿去合成升了一级，刷新功能均无法使用。只贴空格子不算使用武器，还可以刷新。所以请合理使用刷新功能。</li>
               <li>空格子贴着背包任意一边放下就能扩容。如果一次给两格，它们是连着的。</li>
               <li>
                 达达利亚站在左边自动扔出武器。敌人从右边走近，碰到他会造成 {CONFIG.enemyContactDamage}{' '}
@@ -175,6 +182,7 @@ export default function App() {
           onStart={startBattle}
           onSettle={() => finish(wave - 1, 'settle')}
           refreshed={shopRefreshed}
+          offerUsed={offerUsed}
           onRefresh={refreshShop}
         />
       )}

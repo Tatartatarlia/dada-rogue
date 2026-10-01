@@ -174,6 +174,14 @@ export function createShop(wave: number): { weapons: Weapon[]; expansion: Expans
   }
 }
 
+/** 这批商店武器只要有一件被装进背包、被合成掉，或因此升了级，就不能刷新。 */
+export function shopOfferUsed(weapons: Weapon[], offer: { id: string; level: number }[]): boolean {
+  return offer.some((item) => {
+    const weapon = weapons.find((candidate) => candidate.id === item.id)
+    return !weapon || weapon.where !== 'shop' || weapon.level !== item.level
+  })
+}
+
 export function initialCells(): Cell[] {
   const cells: Cell[] = []
   for (let y = 0; y < CONFIG.backpackRows; y += 1) {

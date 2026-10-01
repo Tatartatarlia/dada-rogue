@@ -81,6 +81,7 @@ export function ShopScreen({
   onStart,
   onSettle,
   refreshed,
+  offerUsed,
   onRefresh,
 }: {
   wave: number
@@ -93,6 +94,7 @@ export function ShopScreen({
   onStart: () => void
   onSettle: () => void
   refreshed: boolean
+  offerUsed: boolean
   onRefresh: () => void
 }) {
   const boardRef = useRef<HTMLDivElement>(null)
@@ -561,14 +563,15 @@ export function ShopScreen({
             <button
               type="button"
               className="text-btn"
-              disabled={refreshed}
+              disabled={refreshed || offerUsed}
+              title={offerUsed ? '装入背包或合成过商店武器后，这一波不能刷新' : '这一波还没动过商店武器时可以刷新一次'}
               onClick={() => {
-                if (swallowClick.current || refreshed) return
+                if (swallowClick.current || refreshed || offerUsed) return
                 onRefresh()
                 flash('商店已刷新，这一波不能再换')
               }}
             >
-              {refreshed ? '本波已刷新' : '刷新'}
+              {refreshed ? '本波已刷新' : offerUsed ? '已使用武器' : '刷新'}
             </button>
           </div>
           <p className="offer-note">
