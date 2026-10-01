@@ -120,6 +120,13 @@ export const CONFIG = {
   boardPad: 2,
   heroHeightRatio: 0.46,
   heroXRatio: 0.045,
+  /**
+   * 画面窄于这个宽度时，立绘改按宽度限制。
+   * 更宽的电脑窗口仍只用 heroHeightRatio，大小和原来一样。
+   */
+  heroNarrowWidth: 820,
+  /** 窄屏上立绘宽度不超过画面的这个比例，给右边留出走路 */
+  heroMaxWidthRatio: 0.38,
   /** 敌人碰到角色身前这条线时造成伤害并消失，按立绘宽度从左往右算 */
   hurtLineRatio: 0.78,
   groundTopRatio: 0.52,

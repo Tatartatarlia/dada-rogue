@@ -186,8 +186,12 @@ export function BattleView({
     const layout = () => {
       const image = heroRef.current
       const aspect = image && image.naturalHeight > 0 ? image.naturalWidth / image.naturalHeight : 1593 / 1751
-      const heroH = Math.min(viewH * CONFIG.heroHeightRatio, 460)
-      const heroW = heroH * aspect
+      let heroH = Math.min(viewH * CONFIG.heroHeightRatio, 460)
+      let heroW = heroH * aspect
+      if (viewW < CONFIG.heroNarrowWidth && heroW > viewW * CONFIG.heroMaxWidthRatio) {
+        heroW = viewW * CONFIG.heroMaxWidthRatio
+        heroH = heroW / aspect
+      }
       const heroX = viewW * CONFIG.heroXRatio
       const groundBot = viewH * CONFIG.groundBotRatio
       const heroY = groundBot - heroH * 0.92
