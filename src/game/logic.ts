@@ -121,14 +121,12 @@ export function effectText(type: WeaponType): string {
 }
 
 export function enemyHpForWave(wave: number): number {
-  return Math.max(1, Math.round(CONFIG.enemyBaseHp * CONFIG.enemyHpGrowth ** (wave - 1)))
+  const linear = 1 + CONFIG.enemyHpLinear * wave
+  return Math.max(1, Math.round(CONFIG.enemyBaseHp * linear * CONFIG.enemyHpExponent ** wave))
 }
 
 export function enemySpeedForWave(wave: number): number {
-  return Math.min(
-    CONFIG.enemySpeedMax,
-    CONFIG.enemySpeed + CONFIG.enemySpeedPerWave * (wave - 1),
-  )
+  return CONFIG.enemySpeed + Math.min(wave * CONFIG.enemySpeedPerWave, CONFIG.enemySpeedBonusMax)
 }
 
 let seq = 1

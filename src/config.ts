@@ -34,12 +34,14 @@ export const CONFIG = {
 
   enemyCount: 40,//敌人数量
   enemyBaseHp: 120,
-  /** 每一波生命 = 基础生命 × 成长 ^ (波数 - 1) */
-  enemyHpGrowth: 1.25,
+  /** 生命 = 基础生命 × (1 + 这个数 × 波数) × enemyHpExponent ^ 波数 */
+  enemyHpLinear: 0.2,
+  enemyHpExponent: 1.08,
   enemySpeed: 118,
-  /** 想让后面的敌人也跑得更快，把这里改成 3～8 */
-  enemySpeedPerWave: 3,
-  enemySpeedMax: 170,
+  /** 每波在基础移速上增加这么多，加到 enemySpeedBonusMax 后不再增加 */
+  enemySpeedPerWave: 0.5,
+  /** 移速加成上限。0.5 × 16 = 8，所以前 16 波慢慢加快，之后封顶 */
+  enemySpeedBonusMax: 8,
   enemySpeedJitter: 0.14,
   enemyContactDamage: 5,
   enemyRadius: 24,
