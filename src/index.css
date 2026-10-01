@@ -1,0 +1,28 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  color: #f4efe4;
+  background:
+    radial-gradient(900px 480px at 8% -10%, rgba(62, 197, 255, 0.16), transparent 55%),
+    radial-gradient(700px 420px at 100% 0%, rgba(224, 122, 61, 0.16), transparent 50%),
+    #070b14;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+#root {
+  min-height: 100vh;
+}
