@@ -126,7 +126,7 @@ export const CONFIG = {
    */
   heroNarrowWidth: 820,
   /** 窄屏上立绘宽度不超过画面的这个比例，给右边留出走路 */
-  heroMaxWidthRatio: 0.38,
+  heroMaxWidthRatio: 0.10,
   /** 敌人碰到角色身前这条线时造成伤害并消失，按立绘宽度从左往右算 */
   hurtLineRatio: 0.78,
   groundTopRatio: 0.52,
