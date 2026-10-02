@@ -218,23 +218,9 @@ function effectDetail(type: WeaponType, level: number): string {
   }
 }
 
-function enemyHpRate(wave: number): number {
-  const bands = CONFIG.enemyHpGrowth
-  const band = bands.find((item) => wave <= item.maxWave) ?? bands[bands.length - 1]
-  return band?.rate ?? 1
-}
-
-/** 从第 1 波乘到这一波。每一波只用自己区间的系数。 */
-export function enemyHpGrowth(wave: number): number {
-  let product = 1
-  const last = Math.max(0, Math.floor(wave))
-  for (let current = 1; current <= last; current += 1) product *= enemyHpRate(current)
-  return product
-}
-
 export function enemyHpForWave(wave: number): number {
   const linear = 1 + CONFIG.enemyHpLinear * wave
-  return Math.max(1, Math.round(CONFIG.enemyBaseHp * linear * enemyHpGrowth(wave)))
+  return Math.max(1, Math.round(CONFIG.enemyBaseHp * linear * CONFIG.enemyHpExponent ** wave))
 }
 
 export function enemySpeedForWave(wave: number): number {

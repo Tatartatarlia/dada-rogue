@@ -39,19 +39,9 @@ export const CONFIG = {
 
   enemyCount: 40,//敌人数量
   enemyBaseHp: 120,
-  /**
-   * 生命 = 基础生命 × (1 + enemyHpLinear × 波数) × 逐波成长系数的连乘。
-   * 第 k 波乘的是这一波所在区间的系数，而不是全程都用最后一档。
-   */
-  enemyHpLinear: 0.2,
-  enemyHpGrowth: [
-    { maxWave: 10, rate: 1.12 },
-    { maxWave: 20, rate: 1.16 },
-    { maxWave: 30, rate: 1.2 },
-    { maxWave: 40, rate: 1.25 },
-    { maxWave: 50, rate: 1.32 },
-    { maxWave: Number.POSITIVE_INFINITY, rate: 1.4 },
-  ],
+  /** 生命 = 基础生命 × (1 + 这个数 × 波数) × enemyHpExponent ^ 波数 */
+  enemyHpLinear: 0.25,
+  enemyHpExponent: 1.1,
   /**
    * 5 级起可以暴击。5 级是初始暴击率和暴击伤害，之后每高一级加上后面的增量。
    * 暴击伤害是额外部分：暴击时伤害 × (1 + 暴击伤害)。
