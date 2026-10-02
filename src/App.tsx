@@ -26,6 +26,11 @@ function readNumber(key: string): number {
   }
 }
 
+const portrait = `${import.meta.env.BASE_URL}tartaglia.webp`
+const heroImage = new Image()
+heroImage.decoding = 'async'
+heroImage.src = portrait
+
 export default function App() {
   const [phase, setPhase] = useState<Phase>('title')
   const [wave, setWave] = useState(1)
@@ -33,7 +38,9 @@ export default function App() {
   const [weapons, setWeapons] = useState<Weapon[]>([])
   const [expansion, setExpansion] = useState<Expansion | null>(null)
   const [best, setBest] = useState(() => readNumber(CONFIG.bestStorageKey))
-  const [hero, setHero] = useState<HTMLImageElement | null>(null)
+  const [hero, setHero] = useState<HTMLImageElement | null>(() =>
+    heroImage.complete && heroImage.naturalWidth > 0 ? heroImage : null,
+  )
   const [result, setResult] = useState<Result | null>(null)
   const [shopRefreshed, setShopRefreshed] = useState(false)
   const [shopOffer, setShopOffer] = useState<{ id: string; level: number }[]>([])
@@ -41,9 +48,13 @@ export default function App() {
   const [saveTied, setSaveTied] = useState(false)
 
   useEffect(() => {
-    const image = new Image()
-    image.src = `${import.meta.env.BASE_URL}tartaglia.png`
-    image.onload = () => setHero(image)
+    if (heroImage.complete && heroImage.naturalWidth > 0) {
+      setHero(heroImage)
+      return
+    }
+    const ready = () => setHero(heroImage)
+    heroImage.addEventListener('load', ready)
+    return () => heroImage.removeEventListener('load', ready)
   }, [])
 
   const loadout = useMemo(
@@ -157,8 +168,6 @@ export default function App() {
     setShopRefreshed(true)
   }
 
-  const portrait = `${import.meta.env.BASE_URL}tartaglia.png`
-
   return (
     <div className="app">
       {phase !== 'battle' && (
@@ -171,7 +180,7 @@ export default function App() {
 
       {phase === 'title' && (
         <main className="title">
-          <img src={portrait} alt="达达利亚" className="portrait" draggable={false} />
+          <img src={portrait} alt="达达利亚" className="portrait" draggable={false} fetchPriority="high" decoding="async" />
           <div className="title-copy">
             <p className="eyebrow">背包肉鸽</p>
             <h1>达达利亚的行囊</h1>
