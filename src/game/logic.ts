@@ -98,12 +98,11 @@ export function attackOf(type: WeaponType, level: number): number {
   return attack
 }
 
-/** 5 级起的暴击率，以及暴击伤害加成（不含基础的 100%）。 */
-export function critStats(level: number): { rate: number; bonus: number } {
-  if (level < CONFIG.critFromLevel) return { rate: 0, bonus: 0 }
-  const steps = level - CONFIG.critFromLevel
-  let rate = CONFIG.critRate + steps * CONFIG.critRatePerLevel
-  let bonus = CONFIG.critDamage + steps * CONFIG.critDamagePerLevel
+/** 暴击率和暴击伤害加成。highestLevel 是背包里最高的武器等级。 */
+export function critStats(highestLevel: number): { rate: number; bonus: number } {
+  const level = Math.max(0, highestLevel)
+  let rate = CONFIG.critRateBase + level * CONFIG.critRatePerLevel
+  let bonus = CONFIG.critDamageBase + level * CONFIG.critDamagePerLevel
   if (rate > 1) {
     bonus += (rate - 1) * CONFIG.critOverflowRatio
     rate = 1
@@ -111,19 +110,19 @@ export function critStats(level: number): { rate: number; bonus: number } {
   return { rate, bonus }
 }
 
-/** 这一下是否暴击。没到 5 级时倍率是 1。 */
-export function rollCrit(level: number): { multiplier: number; crit: boolean } {
-  const stats = critStats(level)
+/** 按背包最高等级掷一次暴击。倍率是 1，或 1 + 暴击伤害。 */
+export function rollCrit(highestLevel: number): { multiplier: number; crit: boolean } {
+  const stats = critStats(highestLevel)
   if (stats.rate <= 0 || Math.random() >= stats.rate) return { multiplier: 1, crit: false }
   return { multiplier: 1 + stats.bonus, crit: true }
 }
 
-export function weaponDps(type: WeaponType, level: number): number {
+export function weaponDps(type: WeaponType, level: number, highestLevel: number): number {
   const attack = attackOf(type, level)
   const interval = CONFIG.weapons[type].interval
   const burnTime = molotovDuration(level)
   const extra = type === 'molotov' ? attack * CONFIG.burnRatio * burnTime : 0
-  const crit = critStats(level)
+  const crit = critStats(highestLevel)
   return ((attack + extra) / interval) * (1 + crit.rate * crit.bonus)
 }
 
@@ -171,12 +170,7 @@ export function potionVulnerability(level: number): number {
 }
 
 export function effectText(type: WeaponType, level: number): string {
-  const detail = effectDetail(type, level)
-  if (level < CONFIG.critFromLevel) return detail
-  const crit = critStats(level)
-  const rate = Math.round(crit.rate * 100)
-  const bonus = Math.round(crit.bonus * 100)
-  return `${detail}。暴击 ${rate}%，暴击伤害 +${bonus}%`
+  return effectDetail(type, level)
 }
 
 function effectDetail(type: WeaponType, level: number): string {

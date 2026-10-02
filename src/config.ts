@@ -43,15 +43,16 @@ export const CONFIG = {
   enemyHpLinear: 0.25,
   enemyHpExponent: 1.09,
   /**
-   * 5 级起可以暴击。5 级是初始暴击率和暴击伤害，之后每高一级加上后面的增量。
-   * 暴击伤害是额外部分：暴击时伤害 × (1 + 暴击伤害)。
+   * 所有武器共用暴击，看背包里等级最高的那件。
+   * 暴击率 = critRateBase + 最高等级 × critRatePerLevel
+   * 暴击伤害（额外）= critDamageBase + 最高等级 × critDamagePerLevel
+   * 暴击时伤害 × (1 + 暴击伤害)。
    * 暴击率超过 100% 后，溢出的每 1% 按 critOverflowRatio 变成暴击伤害。
    */
-  critFromLevel: 5,
-  critRate: 0.25,
-  critDamage: 0.5,
-  critRatePerLevel: 0.05,
-  critDamagePerLevel: 0.1,
+  critRateBase: 0.2,
+  critRatePerLevel: 0.1,
+  critDamageBase: 0.4,
+  critDamagePerLevel: 0.2,
   critOverflowRatio: 2,
   enemySpeed: 118,
   /** 每波在基础移速上增加这么多，加到 enemySpeedBonusMax 后不再增加 */

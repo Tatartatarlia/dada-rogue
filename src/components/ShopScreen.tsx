@@ -602,7 +602,8 @@ export function ShopScreen({
   const bagWeapons = weapons.filter((weapon) => weapon.where === 'bag')
   const shopWeapons = weapons.filter((weapon) => weapon.where === 'shop')
   const used = bagWeapons.reduce((sum, weapon) => sum + shapeOf(weapon.type, weapon.rotation).length, 0)
-  const dps = bagWeapons.reduce((sum, weapon) => sum + weaponDps(weapon.type, weapon.level), 0)
+  const highestLevel = bagWeapons.reduce((max, weapon) => Math.max(max, weapon.level), 0)
+  const dps = bagWeapons.reduce((sum, weapon) => sum + weaponDps(weapon.type, weapon.level, highestLevel), 0)
   const blocked = bagWeapons.some((weapon) => !isBagWeaponLegal(cells, weapons, weapon))
 
   let preview: { cells: Cell[]; tone: 'ok' | 'bad' | 'merge' } | null = null
