@@ -3,7 +3,8 @@ import { CONFIG } from './config'
 import type { Cell, Expansion, Weapon } from './types'
 import { createShop, initialCells, shopOfferUsed } from './game/logic'
 import { clearSave, readSave, writeSave } from './game/save'
-import { play, setMuted as applyMute } from './game/audio'
+import { play } from './game/audio'
+import { VolumeControls } from './components/VolumeControls'
 import { ShopScreen } from './components/ShopScreen'
 import { BattleView } from './components/BattleView'
 import './App.css'
@@ -25,14 +26,6 @@ function readNumber(key: string): number {
   }
 }
 
-function readMuted(): boolean {
-  try {
-    return localStorage.getItem(CONFIG.muteStorageKey) === '1'
-  } catch {
-    return false
-  }
-}
-
 export default function App() {
   const [phase, setPhase] = useState<Phase>('title')
   const [wave, setWave] = useState(1)
@@ -40,17 +33,12 @@ export default function App() {
   const [weapons, setWeapons] = useState<Weapon[]>([])
   const [expansion, setExpansion] = useState<Expansion | null>(null)
   const [best, setBest] = useState(() => readNumber(CONFIG.bestStorageKey))
-  const [muted, setMuted] = useState(readMuted)
   const [hero, setHero] = useState<HTMLImageElement | null>(null)
   const [result, setResult] = useState<Result | null>(null)
   const [shopRefreshed, setShopRefreshed] = useState(false)
   const [shopOffer, setShopOffer] = useState<{ id: string; level: number }[]>([])
   const [save, setSave] = useState(() => readSave())
   const [saveTied, setSaveTied] = useState(false)
-
-  useEffect(() => {
-    applyMute(muted)
-  }, [muted])
 
   useEffect(() => {
     const image = new Image()
@@ -65,19 +53,6 @@ export default function App() {
         .map((weapon) => ({ type: weapon.type, level: weapon.level })),
     [weapons],
   )
-
-  function toggleMute() {
-    setMuted((value) => {
-      const next = !value
-      try {
-        localStorage.setItem(CONFIG.muteStorageKey, next ? '1' : '0')
-      } catch {
-        /* 隐私模式里记不住开关，声音仍然当场生效 */
-      }
-      applyMute(next)
-      return next
-    })
-  }
 
   function finish(reached: number, reason: Result['reason']) {
     const waveReached = Math.max(0, reached)
@@ -190,9 +165,7 @@ export default function App() {
         <div className="topbar">
           <span className="brand">达达利亚的行囊</span>
           <span>历史最高 {best > 0 ? `${best} 波` : '尚无记录'}</span>
-          <button type="button" className="text-btn" onClick={toggleMute}>
-            {muted ? '声音关' : '声音开'}
-          </button>
+          <VolumeControls />
         </div>
       )}
 
@@ -268,8 +241,6 @@ export default function App() {
           loadout={loadout}
           hero={hero}
           best={best}
-          muted={muted}
-          onToggleMute={toggleMute}
           onWin={afterWin}
           onLose={() => finish(wave, 'dead')}
           onSettle={() => finish(wave, 'settle')}

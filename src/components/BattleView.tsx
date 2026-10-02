@@ -3,6 +3,7 @@ import { CONFIG } from '../config'
 import type { LoadoutItem, WeaponType } from '../types'
 import { attackOf, axeSplash, bombRadius, dartTargets, enemyHpForWave, enemySpeedForWave, molotovDuration, potionRadius, potionSlow, potionVulnerability, rollCrit, swordCombo } from '../game/logic'
 import { play } from '../game/audio'
+import { VolumeControls } from './VolumeControls'
 import {
   drawBanner,
   drawBattlefield,
@@ -118,8 +119,6 @@ export function BattleView({
   loadout,
   hero,
   best,
-  muted,
-  onToggleMute,
   onWin,
   onLose,
   onSettle,
@@ -128,8 +127,6 @@ export function BattleView({
   loadout: LoadoutItem[]
   hero: HTMLImageElement | null
   best: number
-  muted: boolean
-  onToggleMute: () => void
   onWin: () => void
   onLose: () => void
   onSettle: () => void
@@ -746,9 +743,7 @@ export function BattleView({
             <WeaponView key={`${item.type}-${item.level}-${index}`} type={item.type} level={item.level} rotation={0} cell={26} />
           ))}
         </div>
-        <button type="button" className="text-btn" onClick={onToggleMute}>
-          {muted ? '声音关' : '声音开'}
-        </button>
+        <VolumeControls />
         <button type="button" className="text-btn" onClick={() => setPaused(true)}>
           暂停
         </button>

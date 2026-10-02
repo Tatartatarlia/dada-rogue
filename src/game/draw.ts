@@ -355,7 +355,7 @@ export function drawBattlefield(ctx: CanvasRenderingContext2D, w: number, h: num
   ctx.arc(w * 0.78, h * 0.16, Math.max(48, w * 0.06), 0, Math.PI * 2)
   ctx.fill()
 
-  ctx.fillStyle = '#10192a'
+  ctx.fillStyle = '#2a648c'
   ctx.beginPath()
   ctx.moveTo(0, h * 0.48)
   ctx.lineTo(w * 0.18, h * 0.36)
@@ -370,8 +370,9 @@ export function drawBattlefield(ctx: CanvasRenderingContext2D, w: number, h: num
 
   const groundTop = h * 0.56
   const road = ctx.createLinearGradient(0, groundTop, 0, h)
-  road.addColorStop(0, '#3a342c')
-  road.addColorStop(1, '#16130f')
+  road.addColorStop(0, '#9dceed')
+  road.addColorStop(0.42, '#76B5DC')
+  road.addColorStop(1, '#4f94c6')
   ctx.fillStyle = road
   ctx.fillRect(0, groundTop, w, h - groundTop)
 

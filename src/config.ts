@@ -195,6 +195,10 @@ export const CONFIG = {
   groundBotRatio: 0.9,
 
   bestStorageKey: 'dada-rogue-best-wave',
+  /** 旧的总开关。新存档用音效音量；读到「关」且还没有音效音量时，音效从 0 开始 */
   muteStorageKey: 'dada-rogue-muted',
+  sfxVolumeKey: 'dada-rogue-sfx-volume',
+  /** 音效默认音量，0 到 1。原先那套音效的响度不变，这里是总乘数 */
+  sfxVolume: 1,
   saveStorageKey: 'dada-rogue-save',
 }

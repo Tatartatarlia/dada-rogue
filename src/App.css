@@ -35,6 +35,20 @@ h2,
   letter-spacing: 0.08em;
 }
 
+.volumes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: #c9d3e4;
+  font-size: 13px;
+}
+
+.volumes input[type='range'] {
+  width: 84px;
+  accent-color: #76b5dc;
+}
+
 .title,
 .result {
   display: grid;
