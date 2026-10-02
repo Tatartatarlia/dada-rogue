@@ -50,10 +50,15 @@ type Drag =
       overShop: boolean
     }
 
-function dragFollowsBag(drag: Drag | null): boolean {
+function dragFollowsBag(drag: Drag | null): drag is Drag {
   if (!drag) return false
   if (drag.kind === 'expand') return true
   return drag.weapon.where === 'shop'
+}
+
+function pointDrag(drag: Drag, cursor: Cell | null, overShop: boolean): Drag {
+  if (drag.kind === 'weapon') return { ...drag, cursor, overShop }
+  return { ...drag, cursor, overShop }
 }
 
 function rotateDrag(drag: Drag): Drag {
@@ -304,7 +309,7 @@ export function ShopScreen({
           : current.cursor != null && cursor.x === current.cursor.x && cursor.y === current.cursor.y
       const overShop = pointingAtShop(current.x, current.y)
       if (cursorSame && overShop === current.overShop) return
-      const next = { ...current, cursor, overShop }
+      const next = pointDrag(current, cursor, overShop)
       dragRef.current = next
       setDrag(next)
     }
