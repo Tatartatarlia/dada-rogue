@@ -807,7 +807,7 @@ export function ShopScreen({
                   <strong>{stat.name}</strong>
                   <p>攻击 {attack}</p>
                   <p>间隔 {stat.interval.toFixed(2)} 秒</p>
-                  <p>{effectText(weapon.type)}</p>
+                  <p>{effectText(weapon.type, weapon.level)}</p>
                   <p className="quiet">{stat.blurb}</p>
                   <button type="button" onClick={() => autoPlace(weapon)}>
                     装入

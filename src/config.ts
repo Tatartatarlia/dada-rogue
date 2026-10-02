@@ -72,6 +72,40 @@ export const CONFIG = {
   slowFactor: 0.48,
   /** 药雾中受到的伤害乘以这个数 */
   potionDamageTaken: 1.2,
+  /**
+   * 2 级和 4 级的额外效果。3 级沿用 2 级，更高的等级沿用 4 级。
+   * 飞镖同时扔向的目标数。
+   */
+  dartTargets2: 2,
+  dartTargets4: 3,
+  /** 短剑连击总下数，以及触发概率。4 级下数更多，概率略高一点 */
+  swordComboHits2: 2,
+  swordComboHits4: 3,
+  swordComboChance: 0.3,
+  swordComboChance4: 0.4,
+  /** 连击每一跳的间隔，秒 */
+  swordComboGap: 0.11,
+  /** 斧头溅射到附近这么多个敌人，半径按命中点来算 */
+  axeSplashCount2: 2,
+  axeSplashCount4: 3,
+  axeSplashRadius: 140,
+  /** 溅射伤害 = 这一下本体伤害 × 这个区间里的随机数。4 级两端都略高一点 */
+  axeSplashMin: 0.3,
+  axeSplashMax: 0.6,
+  axeSplashMin4: 0.36,
+  axeSplashMax4: 0.66,
+  /** 炸弹 2 级起，爆炸半径乘以这个数 */
+  bombRadiusScale: 1.35,
+  /** 炸弹 4 级爆炸后留下的燃烧区域，每秒伤害 = 这一发攻击力 × bombBurnRatio */
+  bombBurnDuration: 2.2,
+  bombBurnRatio: 0.4,
+  /** 燃烧瓶 2 级起，燃烧时间乘以这个数。4 级的燃烧伤害会叠加 */
+  molotovDurationScale: 1.45,
+  /** 虚弱药剂 2 级起，药雾半径乘以这个数 */
+  potionRadiusScale: 1.4,
+  /** 虚弱药剂 4 级：移速乘数更低，受伤乘数更高 */
+  slowFactor4: 0.34,
+  potionDamageTaken4: 1.4,
 
   projectileLife: 3,
   projectileRadius: 16,

@@ -101,22 +101,90 @@ export function attackOf(type: WeaponType, level: number): number {
 export function weaponDps(type: WeaponType, level: number): number {
   const attack = attackOf(type, level)
   const interval = CONFIG.weapons[type].interval
-  const extra = type === 'molotov' ? attack * CONFIG.burnRatio * CONFIG.burnDuration : 0
+  const burnTime = molotovDuration(level)
+  const extra = type === 'molotov' ? attack * CONFIG.burnRatio * burnTime : 0
   return (attack + extra) / interval
 }
 
-export function effectText(type: WeaponType): string {
+export function dartTargets(level: number): number {
+  if (level >= 4) return CONFIG.dartTargets4
+  if (level >= 2) return CONFIG.dartTargets2
+  return 1
+}
+
+export function swordCombo(level: number): { hits: number; chance: number } | null {
+  if (level < 2) return null
+  if (level >= 4) return { hits: CONFIG.swordComboHits4, chance: CONFIG.swordComboChance4 }
+  return { hits: CONFIG.swordComboHits2, chance: CONFIG.swordComboChance }
+}
+
+export function axeSplash(level: number): { count: number; min: number; max: number } | null {
+  if (level < 2) return null
+  if (level >= 4) {
+    return { count: CONFIG.axeSplashCount4, min: CONFIG.axeSplashMin4, max: CONFIG.axeSplashMax4 }
+  }
+  return { count: CONFIG.axeSplashCount2, min: CONFIG.axeSplashMin, max: CONFIG.axeSplashMax }
+}
+
+export function bombRadius(level: number): number {
+  if (level >= 2) return CONFIG.bombSplashRadius * CONFIG.bombRadiusScale
+  return CONFIG.bombSplashRadius
+}
+
+export function molotovDuration(level: number): number {
+  if (level >= 2) return CONFIG.burnDuration * CONFIG.molotovDurationScale
+  return CONFIG.burnDuration
+}
+
+export function potionRadius(level: number): number {
+  if (level >= 2) return CONFIG.potionRadius * CONFIG.potionRadiusScale
+  return CONFIG.potionRadius
+}
+
+export function potionSlow(level: number): number {
+  return level >= 4 ? CONFIG.slowFactor4 : CONFIG.slowFactor
+}
+
+export function potionVulnerability(level: number): number {
+  return level >= 4 ? CONFIG.potionDamageTaken4 : CONFIG.potionDamageTaken
+}
+
+export function effectText(type: WeaponType, level: number): string {
   switch (type) {
-    case 'axe':
     case 'dart':
-    case 'sword':
-      return '间隔短，单下伤害偏低'
+      if (level >= 4) return `同时扔向 ${dartTargets(level)} 个目标`
+      if (level >= 2) return `同时扔向 ${dartTargets(level)} 个目标，4 级扔向 ${CONFIG.dartTargets4} 个`
+      return `2 级同时扔向 ${CONFIG.dartTargets2} 个目标，4 级扔向 ${CONFIG.dartTargets4} 个`
+    case 'sword': {
+      const combo = swordCombo(level)
+      if (level >= 4 && combo) return `${Math.round(combo.chance * 100)}% 概率连打 ${combo.hits} 下`
+      if (combo) return `${Math.round(combo.chance * 100)}% 概率连打 ${combo.hits} 下，4 级连打 ${CONFIG.swordComboHits4} 下`
+      return `2 级 ${Math.round(CONFIG.swordComboChance * 100)}% 概率连打 ${CONFIG.swordComboHits2} 下，4 级连打 ${CONFIG.swordComboHits4} 下`
+    }
+    case 'axe': {
+      const splash = axeSplash(level)
+      if (level >= 4 && splash) {
+        return `溅射 ${splash.count} 人，伤害 ${Math.round(splash.min * 100)}%–${Math.round(splash.max * 100)}%`
+      }
+      if (splash) {
+        return `溅射 ${splash.count} 人，4 级溅射 ${CONFIG.axeSplashCount4} 人且伤害更高`
+      }
+      return `2 级溅射 ${CONFIG.axeSplashCount2} 人，4 级溅射 ${CONFIG.axeSplashCount4} 人`
+    }
     case 'bomb':
-      return `溅射 ${Math.round(CONFIG.bombSplashRatio * 100)}%`
+      if (level >= 4) return `爆炸范围更大，并留下 ${CONFIG.bombBurnDuration.toFixed(1)} 秒燃烧`
+      if (level >= 2) return `爆炸范围扩大，4 级留下燃烧区域`
+      return `溅射 ${Math.round(CONFIG.bombSplashRatio * 100)}%，2 级范围扩大，4 级留下燃烧`
     case 'molotov':
-      return `燃烧 ${CONFIG.burnDuration.toFixed(1)} 秒`
+      if (level >= 4) return `燃烧 ${molotovDuration(level).toFixed(1)} 秒，伤害可叠加`
+      if (level >= 2) return `燃烧 ${molotovDuration(level).toFixed(1)} 秒，4 级伤害可叠加`
+      return `燃烧 ${CONFIG.burnDuration.toFixed(1)} 秒，2 级更久，4 级可叠加`
     case 'potion':
-      return `移速 ${Math.round(CONFIG.slowFactor * 100)}%，受伤 +${Math.round((CONFIG.potionDamageTaken - 1) * 100)}%`
+      if (level >= 4) {
+        return `移速 ${Math.round(potionSlow(level) * 100)}%，受伤 +${Math.round((potionVulnerability(level) - 1) * 100)}%`
+      }
+      if (level >= 2) return `药雾更大，移速 ${Math.round(CONFIG.slowFactor * 100)}%，受伤 +${Math.round((CONFIG.potionDamageTaken - 1) * 100)}%。4 级更强`
+      return `移速 ${Math.round(CONFIG.slowFactor * 100)}%，受伤 +${Math.round((CONFIG.potionDamageTaken - 1) * 100)}%。2 级雾更大，4 级更强`
   }
 }
 

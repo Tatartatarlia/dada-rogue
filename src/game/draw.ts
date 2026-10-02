@@ -567,15 +567,16 @@ export function drawPotionZone(
   life: number,
   max: number,
   time: number,
+  tone: 'potion' | 'fire' = 'potion',
 ): void {
   const fade = life > max * 0.25 ? 1 : Math.max(0, life / (max * 0.25))
   ctx.save()
   ctx.beginPath()
   ctx.arc(x, y, radius, 0, Math.PI * 2)
-  ctx.fillStyle = 'rgba(150, 96, 255, 0.28)'
+  ctx.fillStyle = tone === 'fire' ? 'rgba(255, 110, 36, 0.32)' : 'rgba(150, 96, 255, 0.28)'
   ctx.globalAlpha = fade
   ctx.fill()
-  ctx.strokeStyle = 'rgba(214, 186, 255, 0.95)'
+  ctx.strokeStyle = tone === 'fire' ? 'rgba(255, 186, 92, 0.95)' : 'rgba(214, 186, 255, 0.95)'
   ctx.lineWidth = 3
   ctx.setLineDash([10, 7])
   ctx.lineDashOffset = -time * 28

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CONFIG } from '../config'
 import type { LoadoutItem, WeaponType } from '../types'
-import { attackOf, enemyHpForWave, enemySpeedForWave } from '../game/logic'
+import { attackOf, axeSplash, bombRadius, dartTargets, enemyHpForWave, enemySpeedForWave, molotovDuration, potionRadius, potionSlow, potionVulnerability, swordCombo } from '../game/logic'
 import { play } from '../game/audio'
 import {
   drawBanner,
@@ -42,6 +42,7 @@ interface Proj {
   spin: number
   tumble: number
   damage: number
+  level: number
   r: number
   life: number
 }
@@ -68,11 +69,23 @@ interface Floater {
 }
 
 interface Zone {
+  kind: 'potion' | 'fire'
   x: number
   y: number
   r: number
   life: number
   max: number
+  slowFactor: number
+  damageTaken: number
+  dps: number
+  pulse: number
+}
+
+interface Combo {
+  enemyId: number
+  damage: number
+  delay: number
+  left: number
 }
 
 interface Boom {
@@ -171,9 +184,11 @@ export function BattleView({
     const floats: Floater[] = []
     const booms: Boom[] = []
     const zones: Zone[] = []
+    const combos: Combo[] = []
 
     const guns = loadout.map((item, index) => ({
       type: item.type,
+      level: item.level,
       damage: attackOf(item.type, item.level),
       interval: CONFIG.weapons[item.type].interval,
       cooldown: CONFIG.weapons[item.type].interval * (index / Math.max(1, loadout.length)) * 0.8,
@@ -238,25 +253,31 @@ export function BattleView({
       if (parts.length > 200) parts.splice(0, parts.length - 200)
     }
 
-    const held = (enemy: Enemy) => {
-      for (const zone of zones) {
-        const dx = enemy.x - zone.x
-        const dy = enemy.y - zone.y
-        if (dx * dx + dy * dy <= zone.r * zone.r) return true
-      }
-      return false
+    const covers = (zone: Zone, enemy: Enemy) => {
+      const dx = enemy.x - zone.x
+      const dy = enemy.y - zone.y
+      return dx * dx + dy * dy <= zone.r * zone.r
     }
 
-    const amplify = (enemy: Enemy, amount: number) =>
-      held(enemy) ? Math.max(1, Math.round(amount * CONFIG.potionDamageTaken)) : amount
-
-    const closest = () => {
-      let best: Enemy | null = null
-      for (const enemy of enemies) {
-        if (enemy.hp <= 0) continue
-        if (!best || enemy.x < best.x) best = enemy
+    const mist = (enemy: Enemy) => {
+      let slow = 1
+      let taken = 1
+      let inside = false
+      for (const zone of zones) {
+        if (zone.kind !== 'potion' || !covers(zone, enemy)) continue
+        inside = true
+        slow = Math.min(slow, zone.slowFactor)
+        taken = Math.max(taken, zone.damageTaken)
       }
-      return best
+      return inside ? { slow, taken } : null
+    }
+
+    const held = (enemy: Enemy) => mist(enemy) != null
+
+    const amplify = (enemy: Enemy, amount: number) => {
+      const zone = mist(enemy)
+      if (!zone) return amount
+      return Math.max(1, Math.round(amount * zone.taken))
     }
 
     const update = (dt: number) => {
@@ -307,33 +328,38 @@ export function BattleView({
       for (const gun of guns) {
         gun.cooldown -= dt
         if (gun.cooldown > 0) continue
-        const target = closest()
-        if (!target) {
+        const alive = enemies.filter((enemy) => enemy.hp > 0).sort((a, b) => a.x - b.x)
+        const count = gun.type === 'dart' ? dartTargets(gun.level) : 1
+        const targets = alive.slice(0, count)
+        if (targets.length === 0) {
           gun.cooldown = 0
           continue
         }
         const spread = (gun.slot - (guns.length - 1) / 2) * 14
         const sx = place.handX
         const sy = place.handY + spread
-        const dx = target.x - sx
-        const dy = target.y - sy
-        const dist = Math.hypot(dx, dy) || 1
         const speed = CONFIG.projectileSpeed[gun.type]
-        projs.push({
-          id: serial,
-          type: gun.type,
-          x: sx,
-          y: sy,
-          vx: (dx / dist) * speed,
-          vy: (dy / dist) * speed,
-          heading: Math.atan2(dy, dx),
-          spin: 0,
-          tumble: tumbleOf(gun.type),
-          damage: gun.damage,
-          r: CONFIG.projectileRadius,
-          life: CONFIG.projectileLife,
-        })
-        serial += 1
+        for (const target of targets) {
+          const dx = target.x - sx
+          const dy = target.y - sy
+          const dist = Math.hypot(dx, dy) || 1
+          projs.push({
+            id: serial,
+            type: gun.type,
+            x: sx,
+            y: sy,
+            vx: (dx / dist) * speed,
+            vy: (dy / dist) * speed,
+            heading: Math.atan2(dy, dx),
+            spin: 0,
+            tumble: tumbleOf(gun.type),
+            damage: gun.damage,
+            level: gun.level,
+            r: CONFIG.projectileRadius,
+            life: CONFIG.projectileLife,
+          })
+          serial += 1
+        }
         gun.cooldown = gun.interval
         play('throw')
       }
@@ -358,11 +384,16 @@ export function BattleView({
           if (dx * dx + dy * dy > reach * reach) continue
           if (proj.type === 'potion') {
             zones.push({
+              kind: 'potion',
               x: proj.x,
               y: proj.y,
-              r: CONFIG.potionRadius,
+              r: potionRadius(proj.level),
               life: CONFIG.slowDuration,
               max: CONFIG.slowDuration,
+              slowFactor: potionSlow(proj.level),
+              damageTaken: potionVulnerability(proj.level),
+              dps: 0,
+              pulse: 0.5,
             })
           }
           const damage = amplify(enemy, proj.damage)
@@ -372,25 +403,68 @@ export function BattleView({
           burst(proj.x, proj.y, boomColor(proj.type), 6)
           play('hit')
           if (proj.type === 'molotov') {
-            enemy.burn = Math.max(enemy.burn, CONFIG.burnDuration)
-            enemy.burnDps = Math.max(enemy.burnDps, proj.damage * CONFIG.burnRatio)
+            const duration = molotovDuration(proj.level)
+            const burnDps = proj.damage * CONFIG.burnRatio
+            enemy.burn = Math.max(enemy.burn, duration)
+            enemy.burnDps = proj.level >= 4 ? enemy.burnDps + burnDps : Math.max(enemy.burnDps, burnDps)
           }
+          const splashAxe = proj.type === 'axe' ? axeSplash(proj.level) : null
+          if (splashAxe) {
+            const nearby = enemies
+              .filter((other) => other.id !== enemy.id && other.hp > 0)
+              .map((other) => ({ other, d: Math.hypot(other.x - enemy.x, other.y - enemy.y) }))
+              .filter((item) => item.d <= CONFIG.axeSplashRadius)
+              .sort((a, b) => a.d - b.d)
+              .slice(0, splashAxe.count)
+            for (const item of nearby) {
+              const ratio = splashAxe.min + Math.random() * (splashAxe.max - splashAxe.min)
+              const splash = amplify(item.other, Math.max(1, Math.round(proj.damage * ratio)))
+              item.other.hp -= splash
+              item.other.flash = 0.1
+              floatText(item.other.x, item.other.y - item.other.r, String(splash), '#ffd48a')
+            }
+          }
+          const radius = proj.type === 'bomb' ? bombRadius(proj.level) : 34
           if (proj.type === 'bomb') {
             for (const other of enemies) {
               if (other.id === enemy.id || other.hp <= 0) continue
               const ox = other.x - proj.x
               const oy = other.y - proj.y
-              if (ox * ox + oy * oy > CONFIG.bombSplashRadius ** 2) continue
+              if (ox * ox + oy * oy > radius * radius) continue
               const splash = amplify(other, Math.max(1, Math.round(proj.damage * CONFIG.bombSplashRatio)))
               other.hp -= splash
               other.flash = 0.1
               floatText(other.x, other.y - other.r, String(splash), '#ffd48a')
             }
+            if (proj.level >= 4) {
+              zones.push({
+                kind: 'fire',
+                x: proj.x,
+                y: proj.y,
+                r: radius,
+                life: CONFIG.bombBurnDuration,
+                max: CONFIG.bombBurnDuration,
+                slowFactor: 1,
+                damageTaken: 1,
+                dps: proj.damage * CONFIG.bombBurnRatio,
+                pulse: 0.45,
+              })
+            }
+          }
+          const combo = proj.type === 'sword' ? swordCombo(proj.level) : null
+          if (combo && Math.random() < combo.chance) {
+            combos.push({
+              enemyId: enemy.id,
+              damage: proj.damage,
+              delay: CONFIG.swordComboGap,
+              left: combo.hits - 1,
+            })
+            floatText(enemy.x, enemy.y - enemy.r - 26, '连击', '#9fd0ff')
           }
           booms.push({
             x: proj.x,
             y: proj.y,
-            r: proj.type === 'bomb' ? CONFIG.bombSplashRadius : 34,
+            r: radius,
             life: 0.22,
             max: 0.22,
             color: boomColor(proj.type),
@@ -401,9 +475,29 @@ export function BattleView({
         if (hit) projs.splice(i, 1)
       }
 
+      for (let i = combos.length - 1; i >= 0; i -= 1) {
+        const combo = combos[i]
+        if (!combo) continue
+        combo.delay -= dt
+        if (combo.delay > 0) continue
+        const enemy = enemies.find((item) => item.id === combo.enemyId && item.hp > 0)
+        if (!enemy) {
+          combos.splice(i, 1)
+          continue
+        }
+        const damage = amplify(enemy, combo.damage)
+        enemy.hp -= damage
+        enemy.flash = 0.12
+        floatText(enemy.x, enemy.y - enemy.r - 8, String(damage), '#9fd0ff')
+        play('hit')
+        combo.left -= 1
+        if (combo.left <= 0) combos.splice(i, 1)
+        else combo.delay = CONFIG.swordComboGap
+      }
+
       for (const enemy of enemies) {
         if (enemy.burn > 0 && enemy.hp > 0) {
-          const amp = held(enemy) ? CONFIG.potionDamageTaken : 1
+          const amp = mist(enemy)?.taken ?? 1
           enemy.hp -= enemy.burnDps * amp * dt
           enemy.burn -= dt
           enemy.burnText -= dt
@@ -415,6 +509,21 @@ export function BattleView({
           enemy.burn = 0
         }
         if (enemy.flash > 0) enemy.flash -= dt
+      }
+
+      for (const zone of zones) {
+        if (zone.kind !== 'fire') continue
+        zone.pulse -= dt
+        const show = zone.pulse <= 0
+        if (show) zone.pulse = 0.5
+        for (const enemy of enemies) {
+          if (enemy.hp <= 0 || !covers(zone, enemy)) continue
+          const amp = mist(enemy)?.taken ?? 1
+          enemy.hp -= zone.dps * amp * dt
+          if (show) {
+            floatText(enemy.x, enemy.y - enemy.r, `-${Math.max(1, Math.round(zone.dps * amp * 0.5))}`, '#ff9a4a')
+          }
+        }
       }
 
       for (let i = zones.length - 1; i >= 0; i -= 1) {
@@ -433,7 +542,7 @@ export function BattleView({
           enemies.splice(i, 1)
           continue
         }
-        const pace = held(enemy) ? CONFIG.slowFactor : 1
+        const pace = mist(enemy)?.slow ?? 1
         const widthScale = Math.min(1, viewW / CONFIG.enemySpeedReferenceWidth)
         enemy.x -= enemy.speed * pace * widthScale * dt
         if (enemy.x - enemy.r <= place.hurtX) {
@@ -500,7 +609,9 @@ export function BattleView({
       ctx.save()
       if (mag > 0.2) ctx.translate((Math.random() - 0.5) * mag, (Math.random() - 0.5) * mag)
       drawBattlefield(ctx, viewW, viewH, time)
-      for (const zone of zones) drawPotionZone(ctx, zone.x, zone.y, zone.r, zone.life, zone.max, time)
+      for (const zone of zones) {
+        drawPotionZone(ctx, zone.x, zone.y, zone.r, zone.life, zone.max, time, zone.kind)
+      }
       const place = layout()
       if (time < CONFIG.spawnDelay + 0.2) {
         ctx.save()
