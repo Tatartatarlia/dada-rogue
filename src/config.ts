@@ -41,7 +41,7 @@ export const CONFIG = {
   enemyBaseHp: 120,
   /** 生命 = 基础生命 × (1 + 这个数 × 波数) × enemyHpExponent ^ 波数 */
   enemyHpLinear: 0.25,
-  enemyHpExponent: 1.1,
+  enemyHpExponent: 1.09,
   /**
    * 5 级起可以暴击。5 级是初始暴击率和暴击伤害，之后每高一级加上后面的增量。
    * 暴击伤害是额外部分：暴击时伤害 × (1 + 暴击伤害)。
