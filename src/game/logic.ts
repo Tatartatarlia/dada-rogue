@@ -235,9 +235,46 @@ export function createExpansion(): Expansion {
   return { id: uid('ex'), count, rotation: 0 }
 }
 
+/**
+ * 第一波三件货按类型名排序后，这些组合在 3×3 背包里没有稳过的拿法。
+ * 对应目前 1 级武器：没有炸弹，又拿燃烧瓶当主力（燃烧不能叠加），或者只有飞镖、短剑这种打最前排太慢的搭配。
+ */
+const OPENING_UNWINNABLE = new Set([
+  'axe+molotov+molotov',
+  'dart+dart+dart',
+  'dart+dart+molotov',
+  'dart+molotov+molotov',
+  'dart+sword+molotov',
+  'molotov+molotov+molotov',
+  'molotov+molotov+potion',
+  'sword+molotov+molotov',
+])
+
+function openingOfferKey(types: WeaponType[]): string {
+  return [...types]
+    .sort((a, b) => WEAPON_TYPES.indexOf(a) - WEAPON_TYPES.indexOf(b))
+    .join('+')
+}
+
+function createShopWeapons(wave: number): Weapon[] {
+  const count = CONFIG.shopWeaponCount
+  const roll = () => Array.from({ length: count }, () => createShopWeapon(wave))
+  if (wave !== 1 || count !== 3) return roll()
+  const limit = CONFIG.openingShopRerolls
+  for (let attempt = 0; attempt < limit; attempt += 1) {
+    const weapons = roll()
+    if (!OPENING_UNWINNABLE.has(openingOfferKey(weapons.map((weapon) => weapon.type)))) return weapons
+  }
+  const weapons = roll()
+  const bomb = createShopWeapon(wave)
+  bomb.type = 'bomb'
+  weapons[0] = bomb
+  return weapons
+}
+
 export function createShop(wave: number): { weapons: Weapon[]; expansion: Expansion } {
   return {
-    weapons: Array.from({ length: CONFIG.shopWeaponCount }, () => createShopWeapon(wave)),
+    weapons: createShopWeapons(wave),
     expansion: createExpansion(),
   }
 }

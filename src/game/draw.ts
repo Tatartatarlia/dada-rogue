@@ -2,21 +2,21 @@ import type { WeaponType } from '../types'
 import { shapeOf } from './logic'
 
 const FILL: Record<WeaponType, string> = {
-  axe: 'rgba(214, 222, 232, 0.34)',
-  dart: 'rgba(236, 242, 250, 0.3)',
-  sword: 'rgba(166, 206, 255, 0.32)',
-  molotov: 'rgba(255, 138, 64, 0.34)',
-  bomb: 'rgba(255, 198, 92, 0.3)',
-  potion: 'rgba(188, 132, 255, 0.34)',
+  axe: 'rgba(226, 72, 78, 0.72)',
+  dart: 'rgba(36, 196, 214, 0.72)',
+  sword: 'rgba(52, 186, 96, 0.72)',
+  molotov: 'rgba(255, 122, 28, 0.72)',
+  bomb: 'rgba(240, 196, 48, 0.78)',
+  potion: 'rgba(156, 84, 240, 0.72)',
 }
 
 const EDGE: Record<WeaponType, string> = {
-  axe: 'rgba(236, 242, 248, 0.85)',
-  dart: 'rgba(248, 250, 252, 0.9)',
-  sword: 'rgba(186, 220, 255, 0.95)',
-  molotov: 'rgba(255, 176, 96, 0.95)',
-  bomb: 'rgba(255, 220, 140, 0.95)',
-  potion: 'rgba(220, 186, 255, 0.95)',
+  axe: 'rgba(255, 168, 164, 0.98)',
+  dart: 'rgba(168, 244, 255, 0.98)',
+  sword: 'rgba(176, 245, 196, 0.98)',
+  molotov: 'rgba(255, 196, 130, 0.98)',
+  bomb: 'rgba(255, 236, 150, 0.98)',
+  potion: 'rgba(226, 196, 255, 0.98)',
 }
 
 /** 未旋转时，图案“朝向”相对 +x 轴的角度 */
@@ -102,7 +102,7 @@ export function paintWeapon(
     ctx.fillStyle = FILL[type]
     ctx.fill()
     ctx.strokeStyle = EDGE[type]
-    ctx.lineWidth = 1.5
+    ctx.lineWidth = 2.5
     ctx.stroke()
   }
   const icon = cell * (0.5 + Math.min(shape.length, 4) * 0.1)

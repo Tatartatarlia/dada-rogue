@@ -123,6 +123,7 @@ export function ShopScreen({
   const [tip, setTip] = useState<string | null>(wave === 1 ? '先把武器拖进背包，再去迎敌' : '生命已回满')
   const [askEnd, setAskEnd] = useState(false)
   const [askOverwrite, setAskOverwrite] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const tipTimer = useRef(0)
   const cellsRef = useRef(cells)
   const weaponsRef = useRef(weapons)
@@ -214,7 +215,11 @@ export function ShopScreen({
       return
     }
     commitDrag(null)
-    if (!moved) return
+    if (!moved) {
+      if (current.kind === 'weapon' && current.weapon.where === 'bag') setSelectedId(current.weapon.id)
+      else setSelectedId(null)
+      return
+    }
     if (current.kind === 'weapon' && returnBagWeaponToShop({ ...current, x: clientX, y: clientY }, target)) return
     const board = boardRef.current
     const cursor = board
@@ -664,9 +669,16 @@ export function ShopScreen({
               onPointerDown={(event) => {
                 if (event.target instanceof Element && event.target.closest('button')) return
                 const cursor = cellFromPoint(event.clientX, event.clientY, event.currentTarget, origin, cell)
-                if (!cursor) return
+                if (!cursor) {
+                  setSelectedId(null)
+                  return
+                }
                 const weapon = weaponAt(weapons, cursor)
-                if (weapon) startWeaponDrag(event, weapon)
+                if (!weapon) {
+                  setSelectedId(null)
+                  return
+                }
+                startWeaponDrag(event, weapon)
               }}
               onContextMenu={(event) => event.preventDefault()}
             >
@@ -692,7 +704,7 @@ export function ShopScreen({
                 return (
                   <div
                     key={weapon.id}
-                    className="placed"
+                    className={weapon.id === selectedId ? 'placed selected' : 'placed'}
                     style={{
                       left: (weapon.x - origin.x) * cell,
                       top: (weapon.y - origin.y) * cell,
@@ -721,6 +733,7 @@ export function ShopScreen({
                 ))
               })}
               {bagWeapons.map((weapon) => {
+                if (weapon.id !== selectedId) return null
                 const shape = shapeOf(weapon.type, weapon.rotation)
                 const width = (Math.max(...shape.map((part) => part.x)) + 1) * cell
                 const height = (Math.max(...shape.map((part) => part.y)) + 1) * cell
@@ -762,8 +775,8 @@ export function ShopScreen({
           </div>
           <p className="tip">
             {blocked
-              ? '有武器没放进格子，点它下方的旋转，或拖到空位后才能出发'
-              : (tip ?? '武器可以先放在任意位置。点下方的旋转调整方向，拖回商店可以放回去。')}
+              ? '有武器没放进格子，点一下它再旋转，或拖到空位后才能出发'
+              : (tip ?? '武器可以先放在任意位置。点一下武器，再点旋转调整方向。拖回商店可以放回去。')}
           </p>
         </div>
 
