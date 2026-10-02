@@ -446,7 +446,7 @@ export interface EnemyDraw {
   maxHp: number
   hue: number
   burn: number
-  slow: number
+  held: boolean
   flash: number
   phase: number
   wave: number
@@ -454,7 +454,7 @@ export interface EnemyDraw {
 
 export function drawEnemy(ctx: CanvasRenderingContext2D, enemy: EnemyDraw, time: number): void {
   const { x, y, r, hue } = enemy
-  const step = Math.sin(time * 8 + enemy.phase) * r * 0.12
+  const step = enemy.held ? 0 : Math.sin(time * 8 + enemy.phase) * r * 0.12
   ctx.fillStyle = 'rgba(0,0,0,0.28)'
   ctx.beginPath()
   ctx.ellipse(x, y + r * 0.95, r * 0.72, r * 0.22, 0, 0, Math.PI * 2)
@@ -521,7 +521,7 @@ export function drawEnemy(ctx: CanvasRenderingContext2D, enemy: EnemyDraw, time:
     ctx.quadraticCurveTo(x - r * 0.28, y - r * 0.7, x, y - r * 1.15)
     ctx.fill()
   }
-  if (enemy.slow > 0) {
+  if (enemy.held) {
     ctx.strokeStyle = 'rgba(188, 140, 255, 0.9)'
     ctx.lineWidth = 2
     ctx.beginPath()
@@ -557,6 +557,30 @@ export function drawProjectile(
   ctx.stroke()
   ctx.restore()
   drawWeaponIcon(ctx, type, x, y, radius * 2.3, flightAngle(type, velocityAngle, spin))
+}
+
+export function drawPotionZone(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  life: number,
+  max: number,
+  time: number,
+): void {
+  const fade = life > max * 0.25 ? 1 : Math.max(0, life / (max * 0.25))
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(x, y, radius, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(150, 96, 255, 0.28)'
+  ctx.globalAlpha = fade
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(214, 186, 255, 0.95)'
+  ctx.lineWidth = 3
+  ctx.setLineDash([10, 7])
+  ctx.lineDashOffset = -time * 28
+  ctx.stroke()
+  ctx.restore()
 }
 
 export function drawBoom(

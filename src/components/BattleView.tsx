@@ -10,6 +10,7 @@ import {
   drawEnemy,
   drawFloater,
   drawHero,
+  drawPotionZone,
   drawProjectile,
 } from '../game/draw'
 import { WeaponView } from './WeaponView'
@@ -25,7 +26,6 @@ interface Enemy {
   burn: number
   burnDps: number
   burnText: number
-  slow: number
   flash: number
   hue: number
   phase: number
@@ -65,6 +65,14 @@ interface Floater {
   life: number
   max: number
   color: string
+}
+
+interface Zone {
+  x: number
+  y: number
+  r: number
+  life: number
+  max: number
 }
 
 interface Boom {
@@ -162,6 +170,7 @@ export function BattleView({
     const parts: Particle[] = []
     const floats: Floater[] = []
     const booms: Boom[] = []
+    const zones: Zone[] = []
 
     const guns = loadout.map((item, index) => ({
       type: item.type,
@@ -229,6 +238,15 @@ export function BattleView({
       if (parts.length > 200) parts.splice(0, parts.length - 200)
     }
 
+    const held = (enemy: Enemy) => {
+      for (const zone of zones) {
+        const dx = enemy.x - zone.x
+        const dy = enemy.y - zone.y
+        if (dx * dx + dy * dy <= zone.r * zone.r) return true
+      }
+      return false
+    }
+
     const closest = () => {
       let best: Enemy | null = null
       for (const enemy of enemies) {
@@ -273,7 +291,6 @@ export function BattleView({
             burn: 0,
             burnDps: 0,
             burnText: 0.3,
-            slow: 0,
             flash: 0,
             hue: (210 - (wave - 1) * 14 + 3600) % 360,
             phase: Math.random() * Math.PI * 2,
@@ -345,7 +362,15 @@ export function BattleView({
             enemy.burn = Math.max(enemy.burn, CONFIG.burnDuration)
             enemy.burnDps = Math.max(enemy.burnDps, proj.damage * CONFIG.burnRatio)
           }
-          if (proj.type === 'potion') enemy.slow = Math.max(enemy.slow, CONFIG.slowDuration)
+          if (proj.type === 'potion') {
+            zones.push({
+              x: proj.x,
+              y: proj.y,
+              r: CONFIG.potionRadius,
+              life: CONFIG.slowDuration,
+              max: CONFIG.slowDuration,
+            })
+          }
           if (proj.type === 'bomb') {
             for (const other of enemies) {
               if (other.id === enemy.id || other.hp <= 0) continue
@@ -384,8 +409,14 @@ export function BattleView({
         } else if (enemy.burn < 0) {
           enemy.burn = 0
         }
-        if (enemy.slow > 0) enemy.slow -= dt
         if (enemy.flash > 0) enemy.flash -= dt
+      }
+
+      for (let i = zones.length - 1; i >= 0; i -= 1) {
+        const zone = zones[i]
+        if (!zone) continue
+        zone.life -= dt
+        if (zone.life <= 0) zones.splice(i, 1)
       }
 
       for (let i = enemies.length - 1; i >= 0; i -= 1) {
@@ -397,9 +428,8 @@ export function BattleView({
           enemies.splice(i, 1)
           continue
         }
-        const slow = enemy.slow > 0 ? CONFIG.slowFactor : 1
         const widthScale = Math.min(1, viewW / CONFIG.enemySpeedReferenceWidth)
-        enemy.x -= enemy.speed * slow * widthScale * dt
+        if (!held(enemy)) enemy.x -= enemy.speed * widthScale * dt
         if (enemy.x - enemy.r <= place.hurtX) {
           hp -= CONFIG.enemyContactDamage
           hurt = 0.45
@@ -464,6 +494,7 @@ export function BattleView({
       ctx.save()
       if (mag > 0.2) ctx.translate((Math.random() - 0.5) * mag, (Math.random() - 0.5) * mag)
       drawBattlefield(ctx, viewW, viewH, time)
+      for (const zone of zones) drawPotionZone(ctx, zone.x, zone.y, zone.r, zone.life, zone.max, time)
       const place = layout()
       if (time < CONFIG.spawnDelay + 0.2) {
         ctx.save()
@@ -476,7 +507,7 @@ export function BattleView({
         ctx.restore()
       }
       for (const enemy of enemies) {
-        drawEnemy(ctx, { ...enemy, wave }, time)
+        drawEnemy(ctx, { ...enemy, wave, held: held(enemy) }, time)
       }
       drawHero(ctx, heroRef.current, place.heroX, place.heroY, place.heroW, place.heroH, time, hurt)
       for (const proj of projs) {
