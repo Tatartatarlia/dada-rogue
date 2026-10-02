@@ -50,6 +50,12 @@ type Drag =
       overShop: boolean
     }
 
+function dragFollowsBag(drag: Drag | null): boolean {
+  if (!drag) return false
+  if (drag.kind === 'expand') return true
+  return drag.weapon.where === 'shop'
+}
+
 function rotateDrag(drag: Drag): Drag {
   if (drag.kind === 'weapon') {
     const shape = shapeOf(drag.weapon.type, drag.rotation)
@@ -269,7 +275,7 @@ export function ShopScreen({
     pullRef.current = (clientY, previousY) => {
       if (window.innerWidth > 900) return
       const current = dragRef.current
-      if (!current || current.kind !== 'weapon' || current.weapon.where !== 'shop') return
+      if (!dragFollowsBag(current)) return
       const board = boardRef.current
       if (!board) return
       const rect = board.getBoundingClientRect()
@@ -323,7 +329,7 @@ export function ShopScreen({
     const guard = (event: TouchEvent) => {
       const current = dragRef.current
       if (window.innerWidth > 900) return
-      if (!current || current.kind !== 'weapon' || current.weapon.where !== 'shop') return
+      if (!dragFollowsBag(current)) return
       if (event.cancelable) event.preventDefault()
     }
     const endBagScroll = () => {
@@ -335,7 +341,7 @@ export function ShopScreen({
     armBagFollowRef.current = (source, pointerId) => {
       const current = dragRef.current
       if (window.innerWidth > 900) return
-      if (!current || current.kind !== 'weapon' || current.weapon.where !== 'shop') return
+      if (!dragFollowsBag(current)) return
       if (source) {
         try {
           source.setPointerCapture(pointerId)
@@ -493,7 +499,14 @@ export function ShopScreen({
     )
   }
 
-  function beginExpandDrag(clientX: number, clientY: number, originX: number, originY: number) {
+  function beginExpandDrag(
+    clientX: number,
+    clientY: number,
+    originX: number,
+    originY: number,
+    source: Element | null,
+    pointerId: number,
+  ) {
     if (!expansion) return
     const shape = expansionShape(expansion.count, expansion.rotation)
     const grab = shape[Math.floor(shape.length / 2)] ?? { x: 0, y: 0 }
@@ -510,6 +523,7 @@ export function ShopScreen({
       cursor: board ? cellFromPoint(clientX, clientY, board, origin, cell) : null,
       overShop: pointingAtShop(clientX, clientY),
     })
+    armBagFollowRef.current(source, pointerId)
   }
 
   function startExpandDrag(event: React.PointerEvent) {
@@ -522,11 +536,26 @@ export function ShopScreen({
         pointerId: event.pointerId,
         x: originX,
         y: originY,
-        start: () => beginExpandDrag(originX, originY, originX, originY),
+        start: () =>
+          beginExpandDrag(
+            originX,
+            originY,
+            originX,
+            originY,
+            event.currentTarget instanceof Element ? event.currentTarget : null,
+            event.pointerId,
+          ),
       }
       return
     }
-    beginExpandDrag(originX, originY, originX, originY)
+    beginExpandDrag(
+      originX,
+      originY,
+      originX,
+      originY,
+      event.currentTarget instanceof Element ? event.currentTarget : null,
+      event.pointerId,
+    )
   }
 
   function spinWeapon(weapon: Weapon) {
