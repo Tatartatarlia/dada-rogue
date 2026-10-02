@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CONFIG } from '../config'
 import type { LoadoutItem, WeaponType } from '../types'
-import { attackOf, axeSplash, bombRadius, dartTargets, enemyHpForWave, enemySpeedForWave, molotovDuration, potionRadius, potionSlow, potionVulnerability, swordCombo } from '../game/logic'
+import { attackOf, axeSplash, bombRadius, dartTargets, enemyHpForWave, enemySpeedForWave, molotovDuration, potionRadius, potionSlow, potionVulnerability, rollCrit, swordCombo } from '../game/logic'
 import { play } from '../game/audio'
 import {
   drawBanner,
@@ -25,6 +25,8 @@ interface Enemy {
   speed: number
   burn: number
   burnDps: number
+  burnLevel: number
+  burnCrit: number
   burnText: number
   flash: number
   hue: number
@@ -78,12 +80,15 @@ interface Zone {
   slowFactor: number
   damageTaken: number
   dps: number
+  level: number
+  critMul: number
   pulse: number
 }
 
 interface Combo {
   enemyId: number
   damage: number
+  level: number
   delay: number
   left: number
 }
@@ -280,6 +285,15 @@ export function BattleView({
       return Math.max(1, Math.round(amount * zone.taken))
     }
 
+    const strike = (enemy: Enemy, raw: number, level: number) => {
+      const rolled = rollCrit(level)
+      const damage = amplify(enemy, Math.max(1, Math.round(raw * rolled.multiplier)))
+      return { damage, crit: rolled.crit }
+    }
+
+    const strikeText = (damage: number, crit: boolean) => (crit ? `暴击 ${damage}` : String(damage))
+    const strikeColor = (crit: boolean, normal: string) => (crit ? '#ffe14a' : normal)
+
     const update = (dt: number) => {
       if (settledRef.current) return
       if (ended) {
@@ -314,6 +328,8 @@ export function BattleView({
             speed: enemySpeedForWave(wave) * jitter,
             burn: 0,
             burnDps: 0,
+            burnLevel: 0,
+            burnCrit: 1,
             burnText: 0.3,
             flash: 0,
             hue: (210 - (wave - 1) * 14 + 3600) % 360,
@@ -393,20 +409,30 @@ export function BattleView({
               slowFactor: potionSlow(proj.level),
               damageTaken: potionVulnerability(proj.level),
               dps: 0,
+              level: proj.level,
+              critMul: 1,
               pulse: 0.5,
             })
           }
-          const damage = amplify(enemy, proj.damage)
-          enemy.hp -= damage
+          const direct = strike(enemy, proj.damage, proj.level)
+          enemy.hp -= direct.damage
           enemy.flash = 0.12
-          floatText(enemy.x, enemy.y - enemy.r - 8, String(damage), '#fff6d8')
+          floatText(enemy.x, enemy.y - enemy.r - 8, strikeText(direct.damage, direct.crit), strikeColor(direct.crit, '#fff6d8'))
           burst(proj.x, proj.y, boomColor(proj.type), 6)
           play('hit')
           if (proj.type === 'molotov') {
             const duration = molotovDuration(proj.level)
             const burnDps = proj.damage * CONFIG.burnRatio
+            const stacking = proj.level >= 4
+            if (stacking) {
+              enemy.burnDps += burnDps
+              enemy.burnLevel = Math.max(enemy.burnLevel, proj.level)
+            } else if (burnDps >= enemy.burnDps) {
+              enemy.burnDps = burnDps
+              enemy.burnLevel = proj.level
+            }
             enemy.burn = Math.max(enemy.burn, duration)
-            enemy.burnDps = proj.level >= 4 ? enemy.burnDps + burnDps : Math.max(enemy.burnDps, burnDps)
+            enemy.burnCrit = rollCrit(enemy.burnLevel).multiplier
           }
           const splashAxe = proj.type === 'axe' ? axeSplash(proj.level) : null
           if (splashAxe) {
@@ -418,10 +444,15 @@ export function BattleView({
               .slice(0, splashAxe.count)
             for (const item of nearby) {
               const ratio = splashAxe.min + Math.random() * (splashAxe.max - splashAxe.min)
-              const splash = amplify(item.other, Math.max(1, Math.round(proj.damage * ratio)))
-              item.other.hp -= splash
+              const splash = strike(item.other, proj.damage * ratio, proj.level)
+              item.other.hp -= splash.damage
               item.other.flash = 0.1
-              floatText(item.other.x, item.other.y - item.other.r, String(splash), '#ffd48a')
+              floatText(
+                item.other.x,
+                item.other.y - item.other.r,
+                strikeText(splash.damage, splash.crit),
+                strikeColor(splash.crit, '#ffd48a'),
+              )
             }
           }
           const radius = proj.type === 'bomb' ? bombRadius(proj.level) : 34
@@ -431,10 +462,15 @@ export function BattleView({
               const ox = other.x - proj.x
               const oy = other.y - proj.y
               if (ox * ox + oy * oy > radius * radius) continue
-              const splash = amplify(other, Math.max(1, Math.round(proj.damage * CONFIG.bombSplashRatio)))
-              other.hp -= splash
+              const splash = strike(other, proj.damage * CONFIG.bombSplashRatio, proj.level)
+              other.hp -= splash.damage
               other.flash = 0.1
-              floatText(other.x, other.y - other.r, String(splash), '#ffd48a')
+              floatText(
+                other.x,
+                other.y - other.r,
+                strikeText(splash.damage, splash.crit),
+                strikeColor(splash.crit, '#ffd48a'),
+              )
             }
             if (proj.level >= 4) {
               zones.push({
@@ -447,6 +483,8 @@ export function BattleView({
                 slowFactor: 1,
                 damageTaken: 1,
                 dps: proj.damage * CONFIG.bombBurnRatio,
+                level: proj.level,
+                critMul: rollCrit(proj.level).multiplier,
                 pulse: 0.45,
               })
             }
@@ -456,6 +494,7 @@ export function BattleView({
             combos.push({
               enemyId: enemy.id,
               damage: proj.damage,
+              level: proj.level,
               delay: CONFIG.swordComboGap,
               left: combo.hits - 1,
             })
@@ -485,10 +524,10 @@ export function BattleView({
           combos.splice(i, 1)
           continue
         }
-        const damage = amplify(enemy, combo.damage)
-        enemy.hp -= damage
+        const hit = strike(enemy, combo.damage, combo.level)
+        enemy.hp -= hit.damage
         enemy.flash = 0.12
-        floatText(enemy.x, enemy.y - enemy.r - 8, String(damage), '#9fd0ff')
+        floatText(enemy.x, enemy.y - enemy.r - 8, strikeText(hit.damage, hit.crit), strikeColor(hit.crit, '#9fd0ff'))
         play('hit')
         combo.left -= 1
         if (combo.left <= 0) combos.splice(i, 1)
@@ -497,13 +536,16 @@ export function BattleView({
 
       for (const enemy of enemies) {
         if (enemy.burn > 0 && enemy.hp > 0) {
-          const amp = mist(enemy)?.taken ?? 1
+          const amp = (mist(enemy)?.taken ?? 1) * enemy.burnCrit
           enemy.hp -= enemy.burnDps * amp * dt
           enemy.burn -= dt
           enemy.burnText -= dt
           if (enemy.burnText <= 0) {
             enemy.burnText = 0.5
-            floatText(enemy.x, enemy.y - enemy.r, `-${Math.max(1, Math.round(enemy.burnDps * amp * 0.5))}`, '#ff9a4a')
+            const crit = enemy.burnCrit > 1
+            const shown = Math.max(1, Math.round(enemy.burnDps * amp * 0.5))
+            floatText(enemy.x, enemy.y - enemy.r, crit ? `暴击 -${shown}` : `-${shown}`, crit ? '#ffe14a' : '#ff9a4a')
+            enemy.burnCrit = rollCrit(enemy.burnLevel).multiplier
           }
         } else if (enemy.burn < 0) {
           enemy.burn = 0
@@ -518,12 +560,15 @@ export function BattleView({
         if (show) zone.pulse = 0.5
         for (const enemy of enemies) {
           if (enemy.hp <= 0 || !covers(zone, enemy)) continue
-          const amp = mist(enemy)?.taken ?? 1
+          const amp = (mist(enemy)?.taken ?? 1) * zone.critMul
           enemy.hp -= zone.dps * amp * dt
           if (show) {
-            floatText(enemy.x, enemy.y - enemy.r, `-${Math.max(1, Math.round(zone.dps * amp * 0.5))}`, '#ff9a4a')
+            const crit = zone.critMul > 1
+            const shown = Math.max(1, Math.round(zone.dps * amp * 0.5))
+            floatText(enemy.x, enemy.y - enemy.r, crit ? `暴击 -${shown}` : `-${shown}`, crit ? '#ffe14a' : '#ff9a4a')
           }
         }
+        if (show) zone.critMul = rollCrit(zone.level).multiplier
       }
 
       for (let i = zones.length - 1; i >= 0; i -= 1) {

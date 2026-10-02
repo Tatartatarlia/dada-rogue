@@ -98,12 +98,33 @@ export function attackOf(type: WeaponType, level: number): number {
   return attack
 }
 
+/** 5 级起的暴击率，以及暴击伤害加成（不含基础的 100%）。 */
+export function critStats(level: number): { rate: number; bonus: number } {
+  if (level < CONFIG.critFromLevel) return { rate: 0, bonus: 0 }
+  const steps = level - CONFIG.critFromLevel
+  let rate = CONFIG.critRate + steps * CONFIG.critRatePerLevel
+  let bonus = CONFIG.critDamage + steps * CONFIG.critDamagePerLevel
+  if (rate > 1) {
+    bonus += (rate - 1) * CONFIG.critOverflowRatio
+    rate = 1
+  }
+  return { rate, bonus }
+}
+
+/** 这一下是否暴击。没到 5 级时倍率是 1。 */
+export function rollCrit(level: number): { multiplier: number; crit: boolean } {
+  const stats = critStats(level)
+  if (stats.rate <= 0 || Math.random() >= stats.rate) return { multiplier: 1, crit: false }
+  return { multiplier: 1 + stats.bonus, crit: true }
+}
+
 export function weaponDps(type: WeaponType, level: number): number {
   const attack = attackOf(type, level)
   const interval = CONFIG.weapons[type].interval
   const burnTime = molotovDuration(level)
   const extra = type === 'molotov' ? attack * CONFIG.burnRatio * burnTime : 0
-  return (attack + extra) / interval
+  const crit = critStats(level)
+  return ((attack + extra) / interval) * (1 + crit.rate * crit.bonus)
 }
 
 export function dartTargets(level: number): number {
@@ -150,6 +171,15 @@ export function potionVulnerability(level: number): number {
 }
 
 export function effectText(type: WeaponType, level: number): string {
+  const detail = effectDetail(type, level)
+  if (level < CONFIG.critFromLevel) return detail
+  const crit = critStats(level)
+  const rate = Math.round(crit.rate * 100)
+  const bonus = Math.round(crit.bonus * 100)
+  return `${detail}。暴击 ${rate}%，暴击伤害 +${bonus}%`
+}
+
+function effectDetail(type: WeaponType, level: number): string {
   switch (type) {
     case 'dart':
       if (level >= 4) return `同时扔向 ${dartTargets(level)} 个目标`
@@ -188,9 +218,23 @@ export function effectText(type: WeaponType, level: number): string {
   }
 }
 
+function enemyHpRate(wave: number): number {
+  const bands = CONFIG.enemyHpGrowth
+  const band = bands.find((item) => wave <= item.maxWave) ?? bands[bands.length - 1]
+  return band?.rate ?? 1
+}
+
+/** 从第 1 波乘到这一波。每一波只用自己区间的系数。 */
+export function enemyHpGrowth(wave: number): number {
+  let product = 1
+  const last = Math.max(0, Math.floor(wave))
+  for (let current = 1; current <= last; current += 1) product *= enemyHpRate(current)
+  return product
+}
+
 export function enemyHpForWave(wave: number): number {
   const linear = 1 + CONFIG.enemyHpLinear * wave
-  return Math.max(1, Math.round(CONFIG.enemyBaseHp * linear * CONFIG.enemyHpExponent ** wave))
+  return Math.max(1, Math.round(CONFIG.enemyBaseHp * linear * enemyHpGrowth(wave)))
 }
 
 export function enemySpeedForWave(wave: number): number {
