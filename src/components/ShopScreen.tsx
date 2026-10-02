@@ -119,6 +119,9 @@ export function ShopScreen({
   const originRef = useRef<Cell>({ x: 0, y: 0 })
   const cellRef = useRef(CONFIG.cellSize)
   const pendingRef = useRef<{ pointerId: number; x: number; y: number; start: () => void } | null>(null)
+  const pullRef = useRef<(clientY: number, previousY: number | null) => void>(() => {})
+  const armBagFollowRef = useRef<(source: Element | null, pointerId: number) => void>(() => {})
+  const endBagScrollRef = useRef<() => void>(() => {})
   const [boardWidth, setBoardWidth] = useState(() =>
     typeof window === 'undefined' || window.innerWidth > 900 ? CONFIG.boardMaxWidth : Math.max(160, window.innerWidth - 64),
   )
@@ -188,6 +191,7 @@ export function ShopScreen({
 
   const finishRef = useRef<(clientX: number, clientY: number, target: EventTarget | null) => void>(() => {})
   const finishDrop = (clientX: number, clientY: number, target: EventTarget | null) => {
+    endBagScrollRef.current()
     const current = dragRef.current
     if (!current) return
     const moved = Math.hypot(clientX - current.ox, clientY - current.oy) >= 6
@@ -262,6 +266,42 @@ export function ShopScreen({
     originRef.current = origin
     cellRef.current = cell
     finishRef.current = finishDrop
+    pullRef.current = (clientY, previousY) => {
+      if (window.innerWidth > 900) return
+      const current = dragRef.current
+      if (!current || current.kind !== 'weapon' || current.weapon.where !== 'shop') return
+      const board = boardRef.current
+      if (!board) return
+      const rect = board.getBoundingClientRect()
+      const overBoard = clientY >= rect.top && clientY <= rect.bottom
+      if (rect.top >= 0 && (overBoard || rect.bottom <= clientY)) return
+      let distance = 0
+      if (previousY != null && clientY < previousY) {
+        const lift = previousY - clientY
+        if (rect.bottom < clientY) distance = Math.min(lift, clientY - rect.bottom)
+        else if (rect.top < 0) distance = Math.min(lift, -rect.top)
+      }
+      const edge = Math.min(160, window.innerHeight * 0.34)
+      if (clientY < edge) {
+        const depth = (edge - Math.max(0, clientY)) / edge
+        const room = rect.bottom < clientY ? clientY - rect.bottom : Math.max(0, -rect.top)
+        distance = Math.max(distance, Math.min(room, 8 + depth * 22))
+      }
+      if (distance < 1) return
+      const before = window.scrollY
+      window.scrollBy(0, -distance)
+      if (window.scrollY === before) boardScrollRef.current?.scrollBy(0, -distance)
+      const cursor = cellFromPoint(current.x, current.y, board, originRef.current, cellRef.current)
+      const cursorSame =
+        cursor == null
+          ? current.cursor == null
+          : current.cursor != null && cursor.x === current.cursor.x && cursor.y === current.cursor.y
+      const overShop = pointingAtShop(current.x, current.y)
+      if (cursorSame && overShop === current.overShop) return
+      const next = { ...current, cursor, overShop }
+      dragRef.current = next
+      setDrag(next)
+    }
   })
 
   useEffect(() => {
@@ -279,6 +319,41 @@ export function ShopScreen({
   }, [])
 
   useEffect(() => {
+    let scrollLoop = 0
+    const guard = (event: TouchEvent) => {
+      const current = dragRef.current
+      if (window.innerWidth > 900) return
+      if (!current || current.kind !== 'weapon' || current.weapon.where !== 'shop') return
+      if (event.cancelable) event.preventDefault()
+    }
+    const endBagScroll = () => {
+      cancelAnimationFrame(scrollLoop)
+      document.documentElement.classList.remove('shop-drag-scroll')
+      window.removeEventListener('touchmove', guard)
+    }
+    endBagScrollRef.current = endBagScroll
+    armBagFollowRef.current = (source, pointerId) => {
+      const current = dragRef.current
+      if (window.innerWidth > 900) return
+      if (!current || current.kind !== 'weapon' || current.weapon.where !== 'shop') return
+      if (source) {
+        try {
+          source.setPointerCapture(pointerId)
+        } catch {
+          /* 触摸已经结束时，浏览器会拒绝捕获 */
+        }
+      }
+      document.documentElement.classList.add('shop-drag-scroll')
+      window.addEventListener('touchmove', guard, { passive: false })
+      cancelAnimationFrame(scrollLoop)
+      const tick = () => {
+        const dragging = dragRef.current
+        if (!dragging) return
+        pullRef.current(dragging.y, null)
+        scrollLoop = requestAnimationFrame(tick)
+      }
+      scrollLoop = requestAnimationFrame(tick)
+    }
     const move = (event: PointerEvent) => {
       const pending = pendingRef.current
       if (pending && event.pointerId === pending.pointerId && !dragRef.current) {
@@ -297,6 +372,7 @@ export function ShopScreen({
       }
       const current = dragRef.current
       if (!current) return
+      pullRef.current(event.clientY, current.y)
       const board = boardRef.current
       const cursor = board
         ? cellFromPoint(event.clientX, event.clientY, board, originRef.current, cellRef.current)
@@ -313,6 +389,7 @@ export function ShopScreen({
     }
     const up = (event: PointerEvent) => {
       pendingRef.current = null
+      endBagScroll()
       finishRef.current(event.clientX, event.clientY, event.target)
     }
     const key = (event: KeyboardEvent) => {
@@ -336,6 +413,7 @@ export function ShopScreen({
     }
     window.addEventListener('pointerdown', clearSwallow, true)
     return () => {
+      endBagScroll()
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', up)
@@ -346,7 +424,15 @@ export function ShopScreen({
     }
   }, [])
 
-  function beginWeaponDrag(clientX: number, clientY: number, originX: number, originY: number, weapon: Weapon) {
+  function beginWeaponDrag(
+    clientX: number,
+    clientY: number,
+    originX: number,
+    originY: number,
+    weapon: Weapon,
+    source: Element | null,
+    pointerId: number,
+  ) {
     const shape = shapeOf(weapon.type, weapon.rotation)
     const local = shape.find((part) => part.x === 0 && part.y === 0) ?? shape[0]
     if (!local) return
@@ -370,6 +456,7 @@ export function ShopScreen({
       cursor: pointerCell,
       overShop: pointingAtShop(clientX, clientY),
     })
+    if (weapon.where === 'shop') armBagFollowRef.current(source, pointerId)
   }
 
   function startWeaponDrag(event: React.PointerEvent, weapon: Weapon, deferTouch = false) {
@@ -382,11 +469,28 @@ export function ShopScreen({
         pointerId: event.pointerId,
         x: originX,
         y: originY,
-        start: () => beginWeaponDrag(originX, originY, originX, originY, weapon),
+        start: () =>
+          beginWeaponDrag(
+            originX,
+            originY,
+            originX,
+            originY,
+            weapon,
+            event.currentTarget instanceof Element ? event.currentTarget : null,
+            event.pointerId,
+          ),
       }
       return
     }
-    beginWeaponDrag(originX, originY, originX, originY, weapon)
+    beginWeaponDrag(
+      originX,
+      originY,
+      originX,
+      originY,
+      weapon,
+      event.currentTarget instanceof Element ? event.currentTarget : null,
+      event.pointerId,
+    )
   }
 
   function beginExpandDrag(clientX: number, clientY: number, originX: number, originY: number) {

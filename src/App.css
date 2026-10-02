@@ -480,6 +480,12 @@ h2 {
     touch-action: pan-y;
   }
 
+  html.shop-drag-scroll,
+  html.shop-drag-scroll body,
+  html.shop-drag-scroll .offer {
+    touch-action: none;
+  }
+
   .hp-track {
     width: min(180px, 46vw);
   }
