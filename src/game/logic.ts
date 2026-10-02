@@ -116,7 +116,7 @@ export function effectText(type: WeaponType): string {
     case 'molotov':
       return `燃烧 ${CONFIG.burnDuration.toFixed(1)} 秒`
     case 'potion':
-      return `定身 ${CONFIG.slowDuration.toFixed(1)} 秒`
+      return `移速 ${Math.round(CONFIG.slowFactor * 100)}%，受伤 +${Math.round((CONFIG.potionDamageTaken - 1) * 100)}%`
   }
 }
 

@@ -247,6 +247,9 @@ export function BattleView({
       return false
     }
 
+    const amplify = (enemy: Enemy, amount: number) =>
+      held(enemy) ? Math.max(1, Math.round(amount * CONFIG.potionDamageTaken)) : amount
+
     const closest = () => {
       let best: Enemy | null = null
       for (const enemy of enemies) {
@@ -353,15 +356,6 @@ export function BattleView({
           const dy = enemy.y - proj.y
           const reach = enemy.r + proj.r * 0.65
           if (dx * dx + dy * dy > reach * reach) continue
-          enemy.hp -= proj.damage
-          enemy.flash = 0.12
-          floatText(enemy.x, enemy.y - enemy.r - 8, String(proj.damage), '#fff6d8')
-          burst(proj.x, proj.y, boomColor(proj.type), 6)
-          play('hit')
-          if (proj.type === 'molotov') {
-            enemy.burn = Math.max(enemy.burn, CONFIG.burnDuration)
-            enemy.burnDps = Math.max(enemy.burnDps, proj.damage * CONFIG.burnRatio)
-          }
           if (proj.type === 'potion') {
             zones.push({
               x: proj.x,
@@ -371,13 +365,23 @@ export function BattleView({
               max: CONFIG.slowDuration,
             })
           }
+          const damage = amplify(enemy, proj.damage)
+          enemy.hp -= damage
+          enemy.flash = 0.12
+          floatText(enemy.x, enemy.y - enemy.r - 8, String(damage), '#fff6d8')
+          burst(proj.x, proj.y, boomColor(proj.type), 6)
+          play('hit')
+          if (proj.type === 'molotov') {
+            enemy.burn = Math.max(enemy.burn, CONFIG.burnDuration)
+            enemy.burnDps = Math.max(enemy.burnDps, proj.damage * CONFIG.burnRatio)
+          }
           if (proj.type === 'bomb') {
             for (const other of enemies) {
               if (other.id === enemy.id || other.hp <= 0) continue
               const ox = other.x - proj.x
               const oy = other.y - proj.y
               if (ox * ox + oy * oy > CONFIG.bombSplashRadius ** 2) continue
-              const splash = Math.max(1, Math.round(proj.damage * CONFIG.bombSplashRatio))
+              const splash = amplify(other, Math.max(1, Math.round(proj.damage * CONFIG.bombSplashRatio)))
               other.hp -= splash
               other.flash = 0.1
               floatText(other.x, other.y - other.r, String(splash), '#ffd48a')
@@ -399,12 +403,13 @@ export function BattleView({
 
       for (const enemy of enemies) {
         if (enemy.burn > 0 && enemy.hp > 0) {
-          enemy.hp -= enemy.burnDps * dt
+          const amp = held(enemy) ? CONFIG.potionDamageTaken : 1
+          enemy.hp -= enemy.burnDps * amp * dt
           enemy.burn -= dt
           enemy.burnText -= dt
           if (enemy.burnText <= 0) {
             enemy.burnText = 0.5
-            floatText(enemy.x, enemy.y - enemy.r, `-${Math.max(1, Math.round(enemy.burnDps * 0.5))}`, '#ff9a4a')
+            floatText(enemy.x, enemy.y - enemy.r, `-${Math.max(1, Math.round(enemy.burnDps * amp * 0.5))}`, '#ff9a4a')
           }
         } else if (enemy.burn < 0) {
           enemy.burn = 0
@@ -428,8 +433,9 @@ export function BattleView({
           enemies.splice(i, 1)
           continue
         }
+        const pace = held(enemy) ? CONFIG.slowFactor : 1
         const widthScale = Math.min(1, viewW / CONFIG.enemySpeedReferenceWidth)
-        if (!held(enemy)) enemy.x -= enemy.speed * widthScale * dt
+        enemy.x -= enemy.speed * pace * widthScale * dt
         if (enemy.x - enemy.r <= place.hurtX) {
           hp -= CONFIG.enemyContactDamage
           hurt = 0.45

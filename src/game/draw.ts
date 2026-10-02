@@ -454,7 +454,7 @@ export interface EnemyDraw {
 
 export function drawEnemy(ctx: CanvasRenderingContext2D, enemy: EnemyDraw, time: number): void {
   const { x, y, r, hue } = enemy
-  const step = enemy.held ? 0 : Math.sin(time * 8 + enemy.phase) * r * 0.12
+  const step = Math.sin(time * 8 + enemy.phase) * r * 0.12
   ctx.fillStyle = 'rgba(0,0,0,0.28)'
   ctx.beginPath()
   ctx.ellipse(x, y + r * 0.95, r * 0.72, r * 0.22, 0, 0, Math.PI * 2)

@@ -64,10 +64,14 @@ export const CONFIG = {
   /** 炸弹溅射伤害 = 攻击力 × 这个比例 */
   bombSplashRatio: 0.62,
   bombSplashRadius: 88,
-  /** 虚弱药剂落点的药雾半径，雾里的敌人无法移动 */
+  /** 虚弱药剂落点的药雾半径 */
   potionRadius: 88,
-  /** 药雾持续这么多秒，结束后敌人恢复行动 */
+  /** 药雾持续这么多秒，结束后移速和受伤都恢复 */
   slowDuration: 2,
+  /** 药雾中的移速乘以这个数 */
+  slowFactor: 0.48,
+  /** 药雾中受到的伤害乘以这个数 */
+  potionDamageTaken: 1.2,
 
   projectileLife: 3,
   projectileRadius: 16,
@@ -107,7 +111,7 @@ export const CONFIG = {
       name: '虚弱药剂',
       attack: 20,
       interval: 0.32,
-      blurb: '砸中后留下药雾，雾里的敌人无法行动',
+      blurb: '砸中后留下药雾，雾里更慢，受到的伤害也更高',
     },
   } satisfies Record<WeaponType, WeaponStat>,
 
