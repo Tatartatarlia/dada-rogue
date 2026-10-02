@@ -95,6 +95,13 @@ h2 {
   line-height: 1.7;
 }
 
+.title-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
 .primary,
 .text-btn,
 .rotate-fab,
@@ -358,6 +365,12 @@ h2 {
 
 .confirm {
   justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.confirm span {
+  flex: 1 1 12em;
+  line-height: 1.45;
 }
 
 .score {
@@ -432,14 +445,51 @@ h2 {
 }
 
 @media (max-width: 900px) {
+  html,
+  body {
+    overflow-x: clip;
+  }
+
+  .topbar,
+  .shop-head,
+  .hud,
+  .wave-readout,
+  .who {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
   .title,
   .result,
   .shop-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shop {
+    width: min(1180px, calc(100% - 16px));
+  }
+
+  .bag-panel,
+  .offers,
+  .board-scroll {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .offer {
+    touch-action: pan-y;
+  }
+
+  .hp-track {
+    width: min(180px, 46vw);
   }
 
   h1 {
     font-size: 40px;
+  }
+
+  h2 {
+    font-size: 30px;
   }
 
   .portrait {

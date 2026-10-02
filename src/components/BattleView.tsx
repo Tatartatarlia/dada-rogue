@@ -398,7 +398,8 @@ export function BattleView({
           continue
         }
         const slow = enemy.slow > 0 ? CONFIG.slowFactor : 1
-        enemy.x -= enemy.speed * slow * dt
+        const widthScale = Math.min(1, viewW / CONFIG.enemySpeedReferenceWidth)
+        enemy.x -= enemy.speed * slow * widthScale * dt
         if (enemy.x - enemy.r <= place.hurtX) {
           hp -= CONFIG.enemyContactDamage
           hurt = 0.45

@@ -42,6 +42,12 @@ export const CONFIG = {
   enemySpeedPerWave: 0.5,
   /** 移速加成上限。0.5 × 16 = 8，所以前 16 波慢慢加快，之后封顶 */
   enemySpeedBonusMax: 8,
+  /**
+   * 实际移速 = 上面的移速 × min(1, 战场宽度 / 这个宽度)。
+   * 战场不窄于这里时倍数是 1，电脑上的速度和原来一样。
+   * 手机更窄，敌人按宽度同比走慢，不会一下贴到脸上。
+   */
+  enemySpeedReferenceWidth: 820,
   enemySpeedJitter: 0.14,
   enemyContactDamage: 5,
   enemyRadius: 24,
@@ -134,4 +140,5 @@ export const CONFIG = {
 
   bestStorageKey: 'dada-rogue-best-wave',
   muteStorageKey: 'dada-rogue-muted',
+  saveStorageKey: 'dada-rogue-save',
 }

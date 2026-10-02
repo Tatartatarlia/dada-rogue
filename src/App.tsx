@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CONFIG } from './config'
 import type { Cell, Expansion, Weapon } from './types'
 import { createShop, initialCells, shopOfferUsed } from './game/logic'
+import { clearSave, readSave, writeSave } from './game/save'
 import { play, setMuted as applyMute } from './game/audio'
 import { ShopScreen } from './components/ShopScreen'
 import { BattleView } from './components/BattleView'
@@ -44,6 +45,8 @@ export default function App() {
   const [result, setResult] = useState<Result | null>(null)
   const [shopRefreshed, setShopRefreshed] = useState(false)
   const [shopOffer, setShopOffer] = useState<{ id: string; level: number }[]>([])
+  const [save, setSave] = useState(() => readSave())
+  const [saveTied, setSaveTied] = useState(false)
 
   useEffect(() => {
     applyMute(muted)
@@ -88,6 +91,11 @@ export default function App() {
       }
       setBest(nextBest)
     }
+    if (saveTied) {
+      clearSave()
+      setSave(null)
+      setSaveTied(false)
+    }
     setResult({ wave: waveReached, reason, record })
     setPhase('result')
   }
@@ -102,7 +110,49 @@ export default function App() {
     setShopRefreshed(false)
     setShopOffer(shop.weapons.map((weapon) => ({ id: weapon.id, level: weapon.level })))
     setResult(null)
+    setSaveTied(false)
     setPhase('shop')
+  }
+
+  function applySave(next: NonNullable<ReturnType<typeof readSave>>) {
+    setWave(next.wave)
+    setCells(next.cells)
+    setWeapons(next.weapons)
+    setExpansion(next.expansion)
+    setShopRefreshed(next.shopRefreshed)
+    setShopOffer(next.shopOffer)
+    setResult(null)
+    setPhase('shop')
+  }
+
+  function continueSave() {
+    const next = readSave()
+    if (!next) {
+      setSave(null)
+      return
+    }
+    play('click')
+    setSave(next)
+    setSaveTied(true)
+    applySave(next)
+  }
+
+  function saveProgress() {
+    const next = {
+      version: 1 as const,
+      wave,
+      cells,
+      weapons,
+      expansion,
+      shopRefreshed,
+      shopOffer,
+    }
+    const ok = writeSave(next)
+    if (ok) {
+      setSave(next)
+      setSaveTied(true)
+    }
+    return ok
   }
 
   function startBattle() {
@@ -162,10 +212,25 @@ export default function App() {
                 达达利亚站在左边自动扔出武器。敌人从右边走近，碰到他会造成 {CONFIG.enemyContactDamage}{' '}
                 点伤害并消失。
               </li>
+              <li>每打完一波敌人即可存档，下次再进入页面可从存档继续游玩或新开一局。</li>
             </ul>
-            <button type="button" className="primary" onClick={startRun}>
-              进入商店
-            </button>
+            <div className="title-actions">
+              {save ? (
+                <>
+                  <button type="button" className="primary" onClick={continueSave}>
+                    从存档开始
+                  </button>
+                  <button type="button" className="text-btn" onClick={startRun}>
+                    新开一局
+                  </button>
+                  <p className="quiet">存档停在第 {save.wave} 波之前</p>
+                </>
+              ) : (
+                <button type="button" className="primary" onClick={startRun}>
+                  进入商店
+                </button>
+              )}
+            </div>
           </div>
         </main>
       )}
@@ -184,6 +249,9 @@ export default function App() {
           refreshed={shopRefreshed}
           offerUsed={offerUsed}
           onRefresh={refreshShop}
+          canSave={wave > 1}
+          onSave={saveProgress}
+          previousSaveWave={save && !saveTied ? save.wave : null}
         />
       )}
 

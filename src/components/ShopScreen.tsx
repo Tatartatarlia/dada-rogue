@@ -83,6 +83,9 @@ export function ShopScreen({
   refreshed,
   offerUsed,
   onRefresh,
+  canSave,
+  onSave,
+  previousSaveWave,
 }: {
   wave: number
   cells: Cell[]
@@ -96,20 +99,29 @@ export function ShopScreen({
   refreshed: boolean
   offerUsed: boolean
   onRefresh: () => void
+  canSave: boolean
+  onSave: () => boolean
+  previousSaveWave: number | null
 }) {
   const boardRef = useRef<HTMLDivElement>(null)
+  const boardScrollRef = useRef<HTMLDivElement>(null)
   const shopRef = useRef<HTMLElement>(null)
   const dragRef = useRef<Drag | null>(null)
   const swallowClick = useRef(false)
   const [drag, setDrag] = useState<Drag | null>(null)
   const [tip, setTip] = useState<string | null>(wave === 1 ? '先把武器拖进背包，再去迎敌' : '生命已回满')
   const [askEnd, setAskEnd] = useState(false)
+  const [askOverwrite, setAskOverwrite] = useState(false)
   const tipTimer = useRef(0)
   const cellsRef = useRef(cells)
   const weaponsRef = useRef(weapons)
   const expansionRef = useRef(expansion)
   const originRef = useRef<Cell>({ x: 0, y: 0 })
   const cellRef = useRef(CONFIG.cellSize)
+  const pendingRef = useRef<{ pointerId: number; x: number; y: number; start: () => void } | null>(null)
+  const [boardWidth, setBoardWidth] = useState(() =>
+    typeof window === 'undefined' || window.innerWidth > 900 ? CONFIG.boardMaxWidth : Math.max(160, window.innerWidth - 64),
+  )
   const onCellsRef = useRef(onCells)
   const onWeaponsRef = useRef(onWeapons)
   const onExpansionRef = useRef(onExpansion)
@@ -119,7 +131,7 @@ export function ShopScreen({
   const rows = bounds.maxY - bounds.minY + 1
   const cell = Math.max(
     CONFIG.cellSizeMin,
-    Math.min(CONFIG.cellSize, Math.floor(CONFIG.boardMaxWidth / cols)),
+    Math.min(CONFIG.cellSize, Math.floor(CONFIG.boardMaxWidth / cols), Math.floor(boardWidth / cols)),
   )
   const origin = { x: bounds.minX, y: bounds.minY }
   const owned = new Set(cells.map(keyOf))
@@ -253,7 +265,36 @@ export function ShopScreen({
   })
 
   useEffect(() => {
+    const node = boardScrollRef.current
+    if (!node) return
+    const measure = () => {
+      const style = getComputedStyle(node)
+      const pad = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+      setBoardWidth(Math.max(1, node.clientWidth - pad))
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
     const move = (event: PointerEvent) => {
+      const pending = pendingRef.current
+      if (pending && event.pointerId === pending.pointerId && !dragRef.current) {
+        const dx = event.clientX - pending.x
+        const dy = event.clientY - pending.y
+        if (Math.abs(dy) >= 12 && Math.abs(dy) > Math.abs(dx)) {
+          pendingRef.current = null
+          return
+        }
+        if (Math.hypot(dx, dy) >= 12 && Math.abs(dx) >= Math.abs(dy)) {
+          pending.start()
+          pendingRef.current = null
+        } else {
+          return
+        }
+      }
       const current = dragRef.current
       if (!current) return
       const board = boardRef.current
@@ -270,7 +311,10 @@ export function ShopScreen({
       dragRef.current = next
       setDrag(next)
     }
-    const up = (event: PointerEvent) => finishRef.current(event.clientX, event.clientY, event.target)
+    const up = (event: PointerEvent) => {
+      pendingRef.current = null
+      finishRef.current(event.clientX, event.clientY, event.target)
+    }
     const key = (event: KeyboardEvent) => {
       if ((event.key === 'r' || event.key === 'R') && dragRef.current) {
         event.preventDefault()
@@ -302,37 +346,51 @@ export function ShopScreen({
     }
   }, [])
 
-  function startWeaponDrag(event: React.PointerEvent, weapon: Weapon) {
-    if (event.button !== 0) return
-    if (event.target instanceof Element && event.target.closest('button')) return
+  function beginWeaponDrag(clientX: number, clientY: number, originX: number, originY: number, weapon: Weapon) {
     const shape = shapeOf(weapon.type, weapon.rotation)
     const local = shape.find((part) => part.x === 0 && part.y === 0) ?? shape[0]
     if (!local) return
     let grab = local
     if (weapon.where === 'bag') {
       const board = boardRef.current
-      const cursor = board ? cellFromPoint(event.clientX, event.clientY, board, origin, cell) : null
+      const cursor = board ? cellFromPoint(originX, originY, board, origin, cell) : null
       if (cursor) grab = { x: cursor.x - weapon.x, y: cursor.y - weapon.y }
     }
     const board = boardRef.current
-    const pointerCell = board ? cellFromPoint(event.clientX, event.clientY, board, origin, cell) : null
+    const pointerCell = board ? cellFromPoint(clientX, clientY, board, origin, cell) : null
     commitDrag({
       kind: 'weapon',
       weapon,
       rotation: weapon.rotation,
       grab,
-      x: event.clientX,
-      y: event.clientY,
-      ox: event.clientX,
-      oy: event.clientY,
+      x: clientX,
+      y: clientY,
+      ox: originX,
+      oy: originY,
       cursor: pointerCell,
-      overShop: pointingAtShop(event.clientX, event.clientY),
+      overShop: pointingAtShop(clientX, clientY),
     })
   }
 
-  function startExpandDrag(event: React.PointerEvent) {
-    if (!expansion || event.button !== 0) return
+  function startWeaponDrag(event: React.PointerEvent, weapon: Weapon, deferTouch = false) {
+    if (event.button !== 0) return
     if (event.target instanceof Element && event.target.closest('button')) return
+    const originX = event.clientX
+    const originY = event.clientY
+    if (deferTouch && event.pointerType === 'touch') {
+      pendingRef.current = {
+        pointerId: event.pointerId,
+        x: originX,
+        y: originY,
+        start: () => beginWeaponDrag(originX, originY, originX, originY, weapon),
+      }
+      return
+    }
+    beginWeaponDrag(originX, originY, originX, originY, weapon)
+  }
+
+  function beginExpandDrag(clientX: number, clientY: number, originX: number, originY: number) {
+    if (!expansion) return
     const shape = expansionShape(expansion.count, expansion.rotation)
     const grab = shape[Math.floor(shape.length / 2)] ?? { x: 0, y: 0 }
     const board = boardRef.current
@@ -341,13 +399,30 @@ export function ShopScreen({
       count: expansion.count,
       rotation: expansion.rotation,
       grab,
-      x: event.clientX,
-      y: event.clientY,
-      ox: event.clientX,
-      oy: event.clientY,
-      cursor: board ? cellFromPoint(event.clientX, event.clientY, board, origin, cell) : null,
-      overShop: pointingAtShop(event.clientX, event.clientY),
+      x: clientX,
+      y: clientY,
+      ox: originX,
+      oy: originY,
+      cursor: board ? cellFromPoint(clientX, clientY, board, origin, cell) : null,
+      overShop: pointingAtShop(clientX, clientY),
     })
+  }
+
+  function startExpandDrag(event: React.PointerEvent) {
+    if (!expansion || event.button !== 0) return
+    if (event.target instanceof Element && event.target.closest('button')) return
+    const originX = event.clientX
+    const originY = event.clientY
+    if (event.pointerType === 'touch') {
+      pendingRef.current = {
+        pointerId: event.pointerId,
+        x: originX,
+        y: originY,
+        start: () => beginExpandDrag(originX, originY, originX, originY),
+      }
+      return
+    }
+    beginExpandDrag(originX, originY, originX, originY)
   }
 
   function spinWeapon(weapon: Weapon) {
@@ -443,7 +518,7 @@ export function ShopScreen({
             <span>背包 {used}/{cells.length}</span>
             <span>每秒伤害约 {Math.round(dps)}</span>
           </div>
-          <div className="board-scroll">
+          <div className="board-scroll" ref={boardScrollRef}>
             <div
               ref={boardRef}
               className="board"
@@ -587,7 +662,7 @@ export function ShopScreen({
                 key={weapon.id}
                 className={drag?.kind === 'weapon' && drag.weapon.id === weapon.id ? 'offer dim' : 'offer'}
                 data-weapon-id={weapon.id}
-                onPointerDown={(event) => startWeaponDrag(event, weapon)}
+                onPointerDown={(event) => startWeaponDrag(event, weapon, true)}
               >
                 <WeaponView type={weapon.type} level={weapon.level} rotation={weapon.rotation} cell={34} />
                 <div>
@@ -629,6 +704,41 @@ export function ShopScreen({
           >
             迎接第 {wave} 波
           </button>
+          {canSave && !askOverwrite && (
+            <button
+              type="button"
+              className="text-btn"
+              onClick={() => {
+                if (swallowClick.current) return
+                if (previousSaveWave != null) {
+                  setAskEnd(false)
+                  setAskOverwrite(true)
+                  return
+                }
+                flash(onSave() ? `已存档，下次可从第 ${wave} 波之前继续` : '这次没能存下来')
+              }}
+            >
+              存档
+            </button>
+          )}
+          {askOverwrite && (
+            <div className="confirm">
+              <span>这局存档会覆盖上一局第 {previousSaveWave} 波之前的进度，还要存吗？</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (swallowClick.current) return
+                  setAskOverwrite(false)
+                  flash(onSave() ? `已存档，下次可从第 ${wave} 波之前继续` : '这次没能存下来')
+                }}
+              >
+                覆盖存档
+              </button>
+              <button type="button" onClick={() => setAskOverwrite(false)}>
+                再想想
+              </button>
+            </div>
+          )}
           {askEnd ? (
             <div className="confirm">
               <span>现在结算？</span>
@@ -651,6 +761,7 @@ export function ShopScreen({
               className="text-btn"
               onClick={() => {
                 if (swallowClick.current) return
+                setAskOverwrite(false)
                 setAskEnd(true)
               }}
             >
