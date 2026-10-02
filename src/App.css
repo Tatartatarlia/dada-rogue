@@ -259,6 +259,10 @@ h2 {
   padding: 4px 4px 36px;
 }
 
+.board-hbar {
+  display: none;
+}
+
 .board {
   position: relative;
   margin: 0 auto;
@@ -492,6 +496,35 @@ h2 {
   .board-scroll {
     min-width: 0;
     max-width: 100%;
+  }
+
+  .board-scroll {
+    scrollbar-width: none;
+    padding-bottom: 8px;
+  }
+
+  .board-scroll::-webkit-scrollbar {
+    height: 0;
+  }
+
+  .board-hbar {
+    display: block;
+    position: relative;
+    height: 22px;
+    margin: 8px 0 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    touch-action: none;
+  }
+
+  .board-hbar-thumb {
+    position: absolute;
+    top: 3px;
+    left: 0;
+    height: 16px;
+    border-radius: 999px;
+    background: #f0c36a;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
   }
 
   .offer {

@@ -137,6 +137,7 @@ export function ShopScreen({
   const [boardWidth, setBoardWidth] = useState(() =>
     typeof window === 'undefined' || window.innerWidth > 900 ? CONFIG.boardMaxWidth : Math.max(160, window.innerWidth - 64),
   )
+  const [boardScroll, setBoardScroll] = useState({ left: 0, width: 1, view: 1, track: 1 })
   const onCellsRef = useRef(onCells)
   const onWeaponsRef = useRef(onWeapons)
   const onExpansionRef = useRef(onExpansion)
@@ -328,11 +329,40 @@ export function ShopScreen({
       const pad = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
       setBoardWidth(Math.max(1, node.clientWidth - pad))
     }
+    const syncScroll = () => {
+      const trackWidth = node.clientWidth
+      setBoardScroll((prev) => {
+        const next = {
+          left: node.scrollLeft,
+          width: node.scrollWidth,
+          view: node.clientWidth,
+          track: trackWidth,
+        }
+        if (
+          prev.left === next.left &&
+          prev.width === next.width &&
+          prev.view === next.view &&
+          prev.track === next.track
+        ) {
+          return prev
+        }
+        return next
+      })
+    }
     measure()
-    const observer = new ResizeObserver(measure)
+    syncScroll()
+    node.addEventListener('scroll', syncScroll, { passive: true })
+    const observer = new ResizeObserver(() => {
+      measure()
+      syncScroll()
+    })
     observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
+    if (boardRef.current) observer.observe(boardRef.current)
+    return () => {
+      node.removeEventListener('scroll', syncScroll)
+      observer.disconnect()
+    }
+  }, [cols, rows, cell])
 
   useEffect(() => {
     let scrollLoop = 0
@@ -637,6 +667,38 @@ export function ShopScreen({
       }
     }
   }
+  const maxScroll = Math.max(0, boardScroll.width - boardScroll.view)
+  const showBar = maxScroll > 1
+  const thumbW = Math.min(
+    boardScroll.track,
+    Math.max(44, (boardScroll.view / Math.max(1, boardScroll.width)) * boardScroll.track),
+  )
+  const thumbX = maxScroll === 0 ? 0 : (boardScroll.left / maxScroll) * Math.max(1, boardScroll.track - thumbW)
+
+  function beginBarDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (window.innerWidth > 900) return
+    const node = boardScrollRef.current
+    if (!node) return
+    event.preventDefault()
+    event.stopPropagation()
+    const thumb = event.currentTarget
+    const startX = event.clientX
+    const startLeft = node.scrollLeft
+    const max = Math.max(1, node.scrollWidth - node.clientWidth)
+    const travel = Math.max(1, (thumb.parentElement?.clientWidth ?? 1) - thumb.getBoundingClientRect().width)
+    const move = (ev: PointerEvent) => {
+      node.scrollLeft = startLeft + ((ev.clientX - startX) / travel) * max
+    }
+    const end = () => {
+      thumb.removeEventListener('pointermove', move)
+      thumb.removeEventListener('pointerup', end)
+      thumb.removeEventListener('pointercancel', end)
+    }
+    thumb.setPointerCapture(event.pointerId)
+    thumb.addEventListener('pointermove', move)
+    thumb.addEventListener('pointerup', end)
+    thumb.addEventListener('pointercancel', end)
+  }
 
   return (
     <section className="shop">
@@ -774,6 +836,15 @@ export function ShopScreen({
               {bagWeapons.length === 0 && <p className="bag-hint">把武器拖到这些格子里</p>}
             </div>
           </div>
+          {showBar && (
+            <div className="board-hbar" role="scrollbar" aria-orientation="horizontal" aria-label="左右滑动背包" aria-valuemin={0} aria-valuemax={maxScroll} aria-valuenow={Math.round(boardScroll.left)}>
+              <div
+                className="board-hbar-thumb"
+                style={{ width: thumbW, transform: `translateX(${thumbX}px)` }}
+                onPointerDown={beginBarDrag}
+              />
+            </div>
+          )}
           <p className="tip">
             {blocked
               ? '有武器没放进格子，点一下它再旋转，或拖到空位后才能出发'
