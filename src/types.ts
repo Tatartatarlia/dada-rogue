@@ -20,6 +20,10 @@ export interface Weapon {
   x: number
   y: number
   where: 'bag' | 'shop'
+  /** 加在等级攻击力上的额外攻击。魔王武装合成后会写在这里。 */
+  bonusAttack?: number
+  /** 断流换来的武器，商店里单独标出来，不算进原来的三件货。 */
+  mark?: 'rift'
 }
 
 export interface Expansion {
@@ -31,4 +35,5 @@ export interface Expansion {
 export interface LoadoutItem {
   type: WeaponType
   level: number
+  bonusAttack?: number
 }

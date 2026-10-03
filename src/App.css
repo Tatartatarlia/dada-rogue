@@ -298,6 +298,145 @@ h2 {
   border-radius: 8px;
 }
 
+.slot.frozen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, rgba(214, 238, 255, 0.72), rgba(79, 148, 198, 0.55));
+  box-shadow: inset 0 0 0 1px rgba(232, 248, 255, 0.8);
+  border-radius: 8px;
+  color: #f4fbff;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+
+.offer-tag {
+  display: inline-block;
+  margin-bottom: 4px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(240, 195, 106, 0.18);
+  color: #f0c36a;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.events {
+  width: min(1080px, calc(100% - 32px));
+  margin: 28px auto 48px;
+}
+
+.event-lead {
+  margin: 8px 0 18px;
+  color: #c9d3e4;
+}
+
+.event-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.event-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  min-height: 240px;
+  padding: 18px 16px 16px;
+  font: inherit;
+  text-align: left;
+  color: #f6efe2;
+  background: rgba(12, 18, 32, 0.72);
+  border: 1px solid rgba(240, 195, 106, 0.38);
+  border-radius: 16px;
+  cursor: pointer;
+}
+
+.event-card:hover {
+  border-color: rgba(240, 195, 106, 0.8);
+  background: rgba(20, 30, 48, 0.88);
+}
+
+.event-name {
+  font-family: "KaiTi", "STKaiti", "Songti SC", serif;
+  font-size: 22px;
+  letter-spacing: 0.06em;
+}
+
+.event-body {
+  margin: 12px 0 0;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.event-flavor {
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.55;
+  color: #9eb0c8;
+}
+
+.event-card:disabled {
+  cursor: default;
+}
+
+.event-result {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(5, 8, 14, 0.72);
+}
+
+.event-result-card {
+  width: min(460px, 100%);
+  padding: 22px 20px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(240, 195, 106, 0.45);
+  background: rgba(12, 18, 32, 0.96);
+  color: #f6efe2;
+}
+
+.event-result-card h2 {
+  margin: 0 0 12px;
+  font-size: 26px;
+}
+
+.event-result-text {
+  margin: 0 0 16px;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.event-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.event-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  text-align: left;
+  color: #f6efe2;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(240, 195, 106, 0.28);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.event-choice:hover {
+  border-color: rgba(240, 195, 106, 0.8);
+}
+
 .placed {
   z-index: 2;
   pointer-events: none;
@@ -552,6 +691,10 @@ h2 {
   .portrait {
     width: min(240px, 70vw);
     margin: 0 auto;
+  }
+
+  .event-grid {
+    grid-template-columns: 1fr;
   }
 }
 

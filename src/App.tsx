@@ -2,14 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { CONFIG } from './config'
 import type { Cell, Expansion, Weapon } from './types'
 import { createShop, initialCells, shopOfferUsed } from './game/logic'
+import { resolveEvent, rollEvents, type GameEvent } from './game/events'
 import { clearSave, readSave, writeSave } from './game/save'
 import { play } from './game/audio'
 import { VolumeControls } from './components/VolumeControls'
 import { ShopScreen } from './components/ShopScreen'
 import { BattleView } from './components/BattleView'
+import { EventScreen } from './components/EventScreen'
 import './App.css'
 
-type Phase = 'title' | 'shop' | 'battle' | 'result'
+type Phase = 'title' | 'event' | 'shop' | 'battle' | 'result'
 
 interface Result {
   wave: number
@@ -46,6 +48,10 @@ export default function App() {
   const [shopOffer, setShopOffer] = useState<{ id: string; level: number }[]>([])
   const [save, setSave] = useState(() => readSave())
   const [saveTied, setSaveTied] = useState(false)
+  const [frozen, setFrozen] = useState<Cell[]>([])
+  const [demonArmed, setDemonArmed] = useState(false)
+  const [giftExpansion, setGiftExpansion] = useState<Expansion | null>(null)
+  const [eventCards, setEventCards] = useState<GameEvent[]>([])
 
   useEffect(() => {
     if (heroImage.complete && heroImage.naturalWidth > 0) {
@@ -61,7 +67,7 @@ export default function App() {
     () =>
       weapons
         .filter((weapon) => weapon.where === 'bag')
-        .map((weapon) => ({ type: weapon.type, level: weapon.level })),
+        .map((weapon) => ({ type: weapon.type, level: weapon.level, bonusAttack: weapon.bonusAttack ?? 0 })),
     [weapons],
   )
 
@@ -95,6 +101,10 @@ export default function App() {
     setExpansion(shop.expansion)
     setShopRefreshed(false)
     setShopOffer(shop.weapons.map((weapon) => ({ id: weapon.id, level: weapon.level })))
+    setFrozen([])
+    setDemonArmed(false)
+    setGiftExpansion(null)
+    setEventCards([])
     setResult(null)
     setSaveTied(false)
     setPhase('shop')
@@ -107,6 +117,10 @@ export default function App() {
     setExpansion(next.expansion)
     setShopRefreshed(next.shopRefreshed)
     setShopOffer(next.shopOffer)
+    setFrozen(next.frozen)
+    setDemonArmed(next.demonArmed)
+    setGiftExpansion(next.giftExpansion)
+    setEventCards([])
     setResult(null)
     setPhase('shop')
   }
@@ -132,6 +146,9 @@ export default function App() {
       expansion,
       shopRefreshed,
       shopOffer,
+      frozen,
+      demonArmed,
+      giftExpansion,
     }
     const ok = writeSave(next)
     if (ok) {
@@ -146,15 +163,55 @@ export default function App() {
     setPhase('battle')
   }
 
-  function afterWin() {
-    const nextWave = wave + 1
-    const shop = createShop(nextWave)
-    setWeapons((current) => [...current.filter((weapon) => weapon.where === 'bag'), ...shop.weapons])
-    setExpansion(shop.expansion)
+  function openShop(nextWave: number, event?: GameEvent) {
+    if (event) {
+      const next = resolveEvent(
+        event,
+        weapons.filter((weapon) => weapon.where === 'bag'),
+        cells,
+        frozen,
+        demonArmed,
+        nextWave,
+      )
+      setWeapons(next.weapons)
+      setCells(next.cells)
+      setFrozen(next.frozen)
+      setDemonArmed(next.demonArmed)
+      setExpansion(next.expansion)
+      setGiftExpansion(next.giftExpansion)
+      setShopOffer(next.shopOffer)
+    } else {
+      const shop = createShop(nextWave)
+      setWeapons((current) => [...current.filter((weapon) => weapon.where === 'bag'), ...shop.weapons])
+      setExpansion(shop.expansion)
+      setGiftExpansion(null)
+      setShopOffer(shop.weapons.map((weapon) => ({ id: weapon.id, level: weapon.level })))
+    }
     setShopRefreshed(false)
-    setShopOffer(shop.weapons.map((weapon) => ({ id: weapon.id, level: weapon.level })))
+    setEventCards([])
     setWave(nextWave)
     setPhase('shop')
+  }
+
+  function afterWin() {
+    const nextWave = wave + 1
+    if (wave > 0 && wave % CONFIG.eventEveryWaves === 0) {
+      const cards = rollEvents(
+        weapons.filter((weapon) => weapon.where === 'bag'),
+        cells,
+      )
+      if (cards.length > 0) {
+        setEventCards(cards)
+        setPhase('event')
+        return
+      }
+    }
+    openShop(nextWave)
+  }
+
+  function pickEvent(event: GameEvent) {
+    play('click')
+    openShop(wave + 1, event)
   }
 
   const offerUsed = shopOfferUsed(weapons, shopOffer)
@@ -162,7 +219,10 @@ export default function App() {
   function refreshShop() {
     if (shopRefreshed || offerUsed) return
     const shop = createShop(wave)
-    setWeapons((current) => [...current.filter((weapon) => weapon.where === 'bag'), ...shop.weapons])
+    setWeapons((current) => [
+      ...current.filter((weapon) => weapon.where === 'bag' || (weapon.where === 'shop' && weapon.mark === 'rift')),
+      ...shop.weapons,
+    ])
     setExpansion((current) => (current ? shop.expansion : null))
     setShopOffer(shop.weapons.map((weapon) => ({ id: weapon.id, level: weapon.level })))
     setShopRefreshed(true)
@@ -200,6 +260,7 @@ export default function App() {
                 达达利亚站在左边自动扔出武器。敌人从右边走近，碰到他会造成 {CONFIG.enemyContactDamage}{' '}
                 点伤害并消失。
               </li>
+              <li>每打完 {CONFIG.eventEveryWaves} 波，进商店前会遇到三张事件卡，只能选一张。</li>
               <li>每打完一波敌人即可存档，下次再进入页面可从存档继续游玩或新开一局。</li>
               <li>优化了手机端体验，防止手机端上下滚动屏幕时误触武器拖放。若手机端想要拖放商店内武器，请先按住武器后再水平滑动，此时即可拖放武器。</li>
             </ul>
@@ -224,15 +285,30 @@ export default function App() {
         </main>
       )}
 
+      {phase === 'event' && (
+        <EventScreen
+          wave={wave}
+          events={eventCards}
+          bag={weapons.filter((weapon) => weapon.where === 'bag')}
+          cells={cells}
+          onPick={pickEvent}
+        />
+      )}
+
       {phase === 'shop' && (
         <ShopScreen
           wave={wave}
           cells={cells}
+          frozen={frozen}
           weapons={weapons}
           expansion={expansion}
+          giftExpansion={giftExpansion}
+          demonArmed={demonArmed}
           onCells={setCells}
           onWeapons={setWeapons}
           onExpansion={setExpansion}
+          onGiftExpansion={setGiftExpansion}
+          onDemonArmed={setDemonArmed}
           onStart={startBattle}
           onSettle={() => finish(wave - 1, 'settle')}
           refreshed={shopRefreshed}

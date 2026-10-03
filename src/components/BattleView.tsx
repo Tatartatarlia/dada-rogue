@@ -189,7 +189,7 @@ export function BattleView({
     const guns = loadout.map((item, index) => ({
       type: item.type,
       level: item.level,
-      damage: attackOf(item.type, item.level),
+      damage: attackOf(item.type, item.level) + (item.bonusAttack ?? 0),
       interval: CONFIG.weapons[item.type].interval,
       cooldown: CONFIG.weapons[item.type].interval * (index / Math.max(1, loadout.length)) * 0.8,
       slot: index,

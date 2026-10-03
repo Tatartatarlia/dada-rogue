@@ -17,6 +17,9 @@ export interface RunSave {
   expansion: Expansion | null
   shopRefreshed: boolean
   shopOffer: ShopOfferStamp[]
+  frozen: Cell[]
+  demonArmed: boolean
+  giftExpansion: Expansion | null
 }
 
 function isCell(value: unknown): value is Cell {
@@ -38,7 +41,9 @@ function isWeapon(value: unknown): value is Weapon {
     weapon.rotation < 4 &&
     Number.isFinite(weapon.x) &&
     Number.isFinite(weapon.y) &&
-    (weapon.where === 'bag' || weapon.where === 'shop')
+    (weapon.where === 'bag' || weapon.where === 'shop') &&
+    (weapon.bonusAttack === undefined || Number.isInteger(weapon.bonusAttack)) &&
+    (weapon.mark === undefined || weapon.mark === 'rift')
   )
 }
 
@@ -71,15 +76,25 @@ export function readSave(): RunSave | null {
     if (data.expansion !== null && !isExpansion(data.expansion)) return null
     if (typeof data.shopRefreshed !== 'boolean') return null
     if (!Array.isArray(data.shopOffer) || !data.shopOffer.every(isOffer)) return null
+    if (data.frozen !== undefined && (!Array.isArray(data.frozen) || !data.frozen.every(isCell))) return null
+    if (data.demonArmed !== undefined && typeof data.demonArmed !== 'boolean') return null
+    if (data.giftExpansion !== undefined && data.giftExpansion !== null && !isExpansion(data.giftExpansion)) return null
     const wave = data.wave
     return {
       version: 1,
       wave,
       cells: data.cells.map((cell) => ({ x: cell.x, y: cell.y })),
-      weapons: data.weapons.map((weapon) => ({ ...weapon })),
+      weapons: data.weapons.map((weapon) => ({
+        ...weapon,
+        ...(weapon.bonusAttack !== undefined ? { bonusAttack: weapon.bonusAttack } : {}),
+        ...(weapon.mark ? { mark: weapon.mark } : {}),
+      })),
       expansion: data.expansion ? { ...data.expansion } : null,
       shopRefreshed: data.shopRefreshed,
       shopOffer: data.shopOffer.map((offer) => ({ id: offer.id, level: offer.level })),
+      frozen: Array.isArray(data.frozen) ? data.frozen.map((cell) => ({ x: cell.x, y: cell.y })) : [],
+      demonArmed: data.demonArmed === true,
+      giftExpansion: data.giftExpansion ? { ...data.giftExpansion } : null,
     }
   } catch {
     return null

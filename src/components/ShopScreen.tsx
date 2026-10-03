@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { CONFIG } from '../config'
 import type { Cell, Expansion, Weapon } from '../types'
 import {
-  attackOf,
   boundsOf,
   canAttach,
   canPlaceWeapon,
@@ -18,6 +17,7 @@ import {
   tryAutoAttach,
   tryAutoPlace,
   weaponAt,
+  weaponAttack,
   weaponDps,
   worldCells,
 } from '../game/logic'
@@ -39,6 +39,7 @@ type Drag =
     }
   | {
       kind: 'expand'
+      slot: 'base' | 'gift'
       count: 1 | 2
       rotation: number
       grab: Cell
@@ -84,11 +85,16 @@ function cellFromPoint(clientX: number, clientY: number, board: HTMLElement, ori
 export function ShopScreen({
   wave,
   cells,
+  frozen,
   weapons,
   expansion,
+  giftExpansion,
+  demonArmed,
   onCells,
   onWeapons,
   onExpansion,
+  onGiftExpansion,
+  onDemonArmed,
   onStart,
   onSettle,
   refreshed,
@@ -100,11 +106,16 @@ export function ShopScreen({
 }: {
   wave: number
   cells: Cell[]
+  frozen: Cell[]
   weapons: Weapon[]
   expansion: Expansion | null
+  giftExpansion: Expansion | null
+  demonArmed: boolean
   onCells: (cells: Cell[]) => void
   onWeapons: (weapons: Weapon[]) => void
   onExpansion: (expansion: Expansion | null) => void
+  onGiftExpansion: (expansion: Expansion | null) => void
+  onDemonArmed: (armed: boolean) => void
   onStart: () => void
   onSettle: () => void
   refreshed: boolean
@@ -128,6 +139,9 @@ export function ShopScreen({
   const cellsRef = useRef(cells)
   const weaponsRef = useRef(weapons)
   const expansionRef = useRef(expansion)
+  const giftRef = useRef(giftExpansion)
+  const frozenRef = useRef(frozen)
+  const demonRef = useRef(demonArmed)
   const originRef = useRef<Cell>({ x: 0, y: 0 })
   const cellRef = useRef(CONFIG.cellSize)
   const pendingRef = useRef<{ pointerId: number; x: number; y: number; start: () => void } | null>(null)
@@ -141,8 +155,11 @@ export function ShopScreen({
   const onCellsRef = useRef(onCells)
   const onWeaponsRef = useRef(onWeapons)
   const onExpansionRef = useRef(onExpansion)
+  const onGiftRef = useRef(onGiftExpansion)
+  const onDemonRef = useRef(onDemonArmed)
 
-  const bounds = boundsOf(cells, CONFIG.boardPad)
+  const boardCells = cells.length > 0 || frozen.length > 0 ? [...cells, ...frozen] : [{ x: 0, y: 0 }]
+  const bounds = boundsOf(boardCells, CONFIG.boardPad)
   const cols = bounds.maxX - bounds.minX + 1
   const rows = bounds.maxY - bounds.minY + 1
   const cell = Math.max(
@@ -151,6 +168,7 @@ export function ShopScreen({
   )
   const origin = { x: bounds.minX, y: bounds.minY }
   const owned = new Set(cells.map(keyOf))
+  const frozenSet = new Set(frozen.map(keyOf))
 
   function flash(text: string) {
     setTip(text)
@@ -227,10 +245,11 @@ export function ShopScreen({
       ? cellFromPoint(clientX, clientY, board, originRef.current, cellRef.current)
       : null
     if (current.kind === 'expand') {
-      if (!cursor || !expansionRef.current) return
+      const source = current.slot === 'gift' ? giftRef.current : expansionRef.current
+      if (!cursor || !source) return
       const anchor = { x: cursor.x - current.grab.x, y: cursor.y - current.grab.y }
-      if (!canAttach(cellsRef.current, current.count, current.rotation, anchor)) {
-        flash('这两格得连在背包边上')
+      if (!canAttach(cellsRef.current, current.count, current.rotation, anchor, frozenRef.current)) {
+        flash(frozenRef.current.length > 0 ? '空格子要贴在背包边上，也不能盖住冰封格子' : '这两格得连在背包边上')
         return
       }
       const added = expansionShape(current.count, current.rotation).map((part) => ({
@@ -238,7 +257,8 @@ export function ShopScreen({
         y: part.y + anchor.y,
       }))
       onCellsRef.current([...cellsRef.current, ...added])
-      onExpansionRef.current(null)
+      if (current.slot === 'gift') onGiftRef.current(null)
+      else onExpansionRef.current(null)
       play('place')
       flash(current.count === 2 ? '背包扩了两格' : '背包扩了一格')
       return
@@ -259,12 +279,14 @@ export function ShopScreen({
       anchor,
       cursor,
       shopTargetId,
+      empowered: demonRef.current,
     })
     if (!result) return
     onWeaponsRef.current(result.weapons)
+    if (result.consumedDemon) onDemonRef.current(false)
     if (result.mergedLevel) {
       play('merge')
-      flash(`合成成功，等级 ${result.mergedLevel}`)
+      flash(result.consumedDemon ? `魔王武装发动，合成到 ${result.mergedLevel} 级，攻击没有损耗` : `合成成功，等级 ${result.mergedLevel}`)
       return
     }
     const placed = result.weapons.find((item) => item.id === current.weapon.id)
@@ -277,9 +299,14 @@ export function ShopScreen({
     cellsRef.current = cells
     weaponsRef.current = weapons
     expansionRef.current = expansion
+    giftRef.current = giftExpansion
+    frozenRef.current = frozen
+    demonRef.current = demonArmed
     onCellsRef.current = onCells
     onWeaponsRef.current = onWeapons
     onExpansionRef.current = onExpansion
+    onGiftRef.current = onGiftExpansion
+    onDemonRef.current = onDemonArmed
     originRef.current = origin
     cellRef.current = cell
     finishRef.current = finishDrop
@@ -546,15 +573,17 @@ export function ShopScreen({
     originY: number,
     source: Element | null,
     pointerId: number,
+    piece: Expansion,
+    slot: 'base' | 'gift',
   ) {
-    if (!expansion) return
-    const shape = expansionShape(expansion.count, expansion.rotation)
+    const shape = expansionShape(piece.count, piece.rotation)
     const grab = shape[Math.floor(shape.length / 2)] ?? { x: 0, y: 0 }
     const board = boardRef.current
     commitDrag({
       kind: 'expand',
-      count: expansion.count,
-      rotation: expansion.rotation,
+      slot,
+      count: piece.count,
+      rotation: piece.rotation,
       grab,
       x: clientX,
       y: clientY,
@@ -566,8 +595,8 @@ export function ShopScreen({
     armBagFollowRef.current(source, pointerId)
   }
 
-  function startExpandDrag(event: React.PointerEvent) {
-    if (!expansion || event.button !== 0) return
+  function startExpandDrag(event: React.PointerEvent, piece: Expansion, slot: 'base' | 'gift') {
+    if (event.button !== 0) return
     if (event.target instanceof Element && event.target.closest('button')) return
     const originX = event.clientX
     const originY = event.clientY
@@ -584,6 +613,8 @@ export function ShopScreen({
             originY,
             event.currentTarget instanceof Element ? event.currentTarget : null,
             event.pointerId,
+            piece,
+            slot,
           ),
       }
       return
@@ -595,6 +626,8 @@ export function ShopScreen({
       originY,
       event.currentTarget instanceof Element ? event.currentTarget : null,
       event.pointerId,
+      piece,
+      slot,
     )
   }
 
@@ -615,25 +648,28 @@ export function ShopScreen({
     flash(`已放入${CONFIG.weapons[weapon.type].name}`)
   }
 
-  function autoAttach() {
+  function autoAttach(piece: Expansion, slot: 'base' | 'gift') {
     if (swallowClick.current) return
-    if (!expansion) return
-    const next = tryAutoAttach(cells, expansion)
+    const next = tryAutoAttach(cells, piece, frozen)
     if (!next) {
-      flash('周围没有能贴上的位置')
+      flash(frozen.length > 0 ? '周围没有能贴上的位置，冰封格子也不能盖' : '周围没有能贴上的位置')
       return
     }
     onCells(next)
-    onExpansion(null)
+    if (slot === 'gift') onGiftExpansion(null)
+    else onExpansion(null)
     play('place')
-    flash(expansion.count === 2 ? '背包扩了两格' : '背包扩了一格')
+    flash(piece.count === 2 ? '背包扩了两格' : '背包扩了一格')
   }
 
   const bagWeapons = weapons.filter((weapon) => weapon.where === 'bag')
   const shopWeapons = weapons.filter((weapon) => weapon.where === 'shop')
   const used = bagWeapons.reduce((sum, weapon) => sum + shapeOf(weapon.type, weapon.rotation).length, 0)
   const highestLevel = bagWeapons.reduce((max, weapon) => Math.max(max, weapon.level), 0)
-  const dps = bagWeapons.reduce((sum, weapon) => sum + weaponDps(weapon.type, weapon.level, highestLevel), 0)
+  const dps = bagWeapons.reduce(
+    (sum, weapon) => sum + weaponDps(weapon.type, weapon.level, highestLevel, weapon.bonusAttack ?? 0),
+    0,
+  )
   const blocked = bagWeapons.some((weapon) => !isBagWeaponLegal(cells, weapons, weapon))
 
   let preview: { cells: Cell[]; tone: 'ok' | 'bad' | 'merge' } | null = null
@@ -662,7 +698,7 @@ export function ShopScreen({
           x: part.x + anchor.x,
           y: part.y + anchor.y,
         }))
-        const ok = canAttach(cells, drag.count, drag.rotation, anchor)
+        const ok = canAttach(cells, drag.count, drag.rotation, anchor, frozen)
         preview = { cells: piece, tone: ok ? 'ok' : 'bad' }
       }
     }
@@ -749,13 +785,16 @@ export function ShopScreen({
                 Array.from({ length: cols }, (_, col) => {
                   const x = origin.x + col
                   const y = origin.y + row
+                  const isFrozen = frozenSet.has(keyOf({ x, y }))
                   const isOwned = owned.has(keyOf({ x, y }))
                   return (
                     <div
                       key={keyOf({ x, y })}
-                      className={isOwned ? 'slot owned' : 'slot empty'}
+                      className={isFrozen ? 'slot frozen' : isOwned ? 'slot owned' : 'slot empty'}
                       style={{ left: col * cell, top: row * cell, width: cell, height: cell }}
-                    />
+                    >
+                      {isFrozen ? '冰' : ''}
+                    </div>
                   )
                 }),
               )}
@@ -850,6 +889,12 @@ export function ShopScreen({
               ? '有武器没放进格子，点一下它再旋转，或拖到空位后才能出发'
               : (tip ?? '武器可以先放在任意位置。点一下武器，再点旋转调整方向。拖回商店可以放回去。')}
           </p>
+          {frozen.length > 0 && <p className="quiet">冰封格子不能放武器，也不能把空格子贴上去。</p>}
+          {demonArmed && (
+            <p className="quiet">
+              魔王武装还在：下一次合成不掉攻击，还会再提高 {Math.round(CONFIG.demonMergeBonus * 100)}%。
+            </p>
+          )}
         </div>
 
         <aside
@@ -875,11 +920,13 @@ export function ShopScreen({
           <p className="offer-note">
             {drag?.kind === 'weapon' && drag.weapon.where === 'bag' && drag.overShop
               ? '松手，这件武器会回到商店'
-              : `下一波 ${CONFIG.enemyCount} 名敌人，每位 ${enemyHpForWave(wave)} 点生命。三件都可以拿走，放不下的会留下。`}
+              : shopWeapons.some((weapon) => weapon.mark === 'rift')
+                ? `下一波 ${CONFIG.enemyCount} 名敌人，每位 ${enemyHpForWave(wave)} 点生命。标着「断流」的是额外的，原来的三件货还在。`
+                : `下一波 ${CONFIG.enemyCount} 名敌人，每位 ${enemyHpForWave(wave)} 点生命。三件都可以拿走，放不下的会留下。`}
           </p>
           {shopWeapons.map((weapon) => {
             const stat = CONFIG.weapons[weapon.type]
-            const attack = attackOf(weapon.type, weapon.level)
+            const attack = weaponAttack(weapon)
             return (
               <article
                 key={weapon.id}
@@ -889,6 +936,7 @@ export function ShopScreen({
               >
                 <WeaponView type={weapon.type} level={weapon.level} rotation={weapon.rotation} cell={34} />
                 <div>
+                  {weapon.mark === 'rift' && <span className="offer-tag">断流</span>}
                   <strong>{stat.name}</strong>
                   <p>攻击 {attack}</p>
                   <p>间隔 {stat.interval.toFixed(2)} 秒</p>
@@ -903,14 +951,30 @@ export function ShopScreen({
           })}
           {expansion && (
             <article
-              className={drag?.kind === 'expand' ? 'offer dim' : 'offer'}
-              onPointerDown={startExpandDrag}
+              className={drag?.kind === 'expand' && drag.slot === 'base' ? 'offer dim' : 'offer'}
+              onPointerDown={(event) => startExpandDrag(event, expansion, 'base')}
             >
               <ExpansionView count={expansion.count} rotation={0} cell={34} />
               <div>
                 <strong>{expansion.count === 2 ? '相连空格' : '空格子'}</strong>
                 <p>{expansion.count === 2 ? '两格必须一起贴到背包边上' : '贴到背包任意一边即可扩容'}</p>
-                <button type="button" onClick={autoAttach}>
+                <button type="button" onClick={() => autoAttach(expansion, 'base')}>
+                  贴上
+                </button>
+              </div>
+            </article>
+          )}
+          {giftExpansion && (
+            <article
+              className={drag?.kind === 'expand' && drag.slot === 'gift' ? 'offer dim' : 'offer'}
+              onPointerDown={(event) => startExpandDrag(event, giftExpansion, 'gift')}
+            >
+              <ExpansionView count={giftExpansion.count} rotation={0} cell={34} />
+              <div>
+                <span className="offer-tag">冰封之痕</span>
+                <strong>{giftExpansion.count === 2 ? '额外两格' : '额外一格'}</strong>
+                <p>贴到背包边上。盖不住冰封格子，也不替换原来的空格子。</p>
+                <button type="button" onClick={() => autoAttach(giftExpansion, 'gift')}>
                   贴上
                 </button>
               </div>

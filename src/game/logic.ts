@@ -98,6 +98,11 @@ export function attackOf(type: WeaponType, level: number): number {
   return attack
 }
 
+/** 等级攻击力，再加上武器自己带着的额外攻击。 */
+export function weaponAttack(weapon: Pick<Weapon, 'type' | 'level' | 'bonusAttack'>): number {
+  return attackOf(weapon.type, weapon.level) + (weapon.bonusAttack ?? 0)
+}
+
 /** 暴击率和暴击伤害加成。highestLevel 是背包里最高的武器等级。 */
 export function critStats(highestLevel: number): { rate: number; bonus: number } {
   const level = Math.max(0, highestLevel)
@@ -117,8 +122,8 @@ export function rollCrit(highestLevel: number): { multiplier: number; crit: bool
   return { multiplier: 1 + stats.bonus, crit: true }
 }
 
-export function weaponDps(type: WeaponType, level: number, highestLevel: number): number {
-  const attack = attackOf(type, level)
+export function weaponDps(type: WeaponType, level: number, highestLevel: number, bonusAttack = 0): number {
+  const attack = attackOf(type, level) + bonusAttack
   const interval = CONFIG.weapons[type].interval
   const burnTime = molotovDuration(level)
   const extra = type === 'molotov' ? attack * CONFIG.burnRatio * burnTime : 0
@@ -347,13 +352,20 @@ export function canPlaceWeapon(
   return piece.every((part) => owned.has(keyOf(part)) && !occupied.has(keyOf(part)))
 }
 
-export function canAttach(cells: Cell[], count: 1 | 2, rotation: number, anchor: Cell): boolean {
+export function canAttach(
+  cells: Cell[],
+  count: 1 | 2,
+  rotation: number,
+  anchor: Cell,
+  blocked: Cell[] = [],
+): boolean {
   const owned = new Set(cells.map(keyOf))
+  const frozen = new Set(blocked.map(keyOf))
   const piece = expansionShape(count, rotation).map((part) => ({
     x: part.x + anchor.x,
     y: part.y + anchor.y,
   }))
-  if (piece.some((part) => owned.has(keyOf(part)))) return false
+  if (piece.some((part) => owned.has(keyOf(part)) || frozen.has(keyOf(part)))) return false
   const dirs = [
     [1, 0],
     [-1, 0],
@@ -410,7 +422,7 @@ export function tryAutoPlace(cells: Cell[], weapons: Weapon[], weapon: Weapon): 
   return best
 }
 
-export function tryAutoAttach(cells: Cell[], expansion: Expansion): Cell[] | null {
+export function tryAutoAttach(cells: Cell[], expansion: Expansion, blocked: Cell[] = []): Cell[] | null {
   const bounds = boundsOf(cells, 2)
   const center = pieceCenter(cells)
   let best: Cell[] | null = null
@@ -421,7 +433,7 @@ export function tryAutoAttach(cells: Cell[], expansion: Expansion): Cell[] | nul
     const maxY = Math.max(...shape.map((part) => part.y))
     for (let y = bounds.minY; y <= bounds.maxY - maxY; y += 1) {
       for (let x = bounds.minX; x <= bounds.maxX - maxX; x += 1) {
-        if (!canAttach(cells, expansion.count, rotation, { x, y })) continue
+        if (!canAttach(cells, expansion.count, rotation, { x, y }, blocked)) continue
         const added = shape.map((part) => ({ x: part.x + x, y: part.y + y }))
         const at = pieceCenter(added)
         const dist = (at.x - center.x) ** 2 + (at.y - center.y) ** 2
@@ -463,15 +475,36 @@ export function resolveWeaponDrop(args: {
   anchor: Cell
   cursor: Cell | null
   shopTargetId: string | null
-}): { weapons: Weapon[]; mergedLevel?: number } | null {
-  const { weapons, weapon, rotation, anchor, cursor, shopTargetId } = args
+  empowered?: boolean
+}): { weapons: Weapon[]; mergedLevel?: number; consumedDemon?: boolean } | null {
+  const { weapons, weapon, rotation, anchor, cursor, shopTargetId, empowered = false } = args
 
-  const mergeInto = (target: Weapon) => ({
-    weapons: weapons
-      .filter((item) => item.id !== weapon.id)
-      .map((item) => (item.id === target.id ? { ...item, level: item.level + 1 } : item)),
-    mergedLevel: target.level + 1,
-  })
+  const mergeInto = (target: Weapon) => {
+    const nextLevel = target.level + 1
+    const carried = empowered || (weapon.bonusAttack ?? 0) !== 0 || (target.bonusAttack ?? 0) !== 0
+    let bonusAttack: number | undefined
+    if (carried) {
+      const sum = weaponAttack(weapon) + weaponAttack(target)
+      const total = empowered
+        ? Math.max(1, Math.round(sum * (1 + CONFIG.demonMergeBonus)))
+        : Math.max(1, Math.min(Math.round(sum * CONFIG.mergeRetain), sum - 1))
+      const bonus = total - attackOf(target.type, nextLevel)
+      if (bonus !== 0) bonusAttack = bonus
+    }
+    return {
+      weapons: weapons
+        .filter((item) => item.id !== weapon.id)
+        .map((item) => {
+          if (item.id !== target.id) return item
+          const next: Weapon = { ...item, level: nextLevel }
+          delete next.bonusAttack
+          if (bonusAttack !== undefined) next.bonusAttack = bonusAttack
+          return next
+        }),
+      mergedLevel: nextLevel,
+      consumedDemon: empowered,
+    }
+  }
 
   if (shopTargetId && shopTargetId !== weapon.id) {
     const target = weapons.find((item) => item.id === shopTargetId)
