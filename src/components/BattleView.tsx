@@ -118,7 +118,8 @@ export function BattleView({
   wave,
   loadout,
   hero,
-  best,
+  hpExponent,
+  recordNote,
   onWin,
   onLose,
   onSettle,
@@ -126,7 +127,8 @@ export function BattleView({
   wave: number
   loadout: LoadoutItem[]
   hero: HTMLImageElement | null
-  best: number
+  hpExponent: number
+  recordNote: string
   onWin: () => void
   onLose: () => void
   onSettle: () => void
@@ -311,7 +313,7 @@ export function BattleView({
         if (spawnTimer <= 0) {
           const top = viewH * CONFIG.groundTopRatio + CONFIG.enemyRadius
           const bot = viewH * CONFIG.groundBotRatio - CONFIG.enemyRadius
-          const maxHp = enemyHpForWave(wave)
+          const maxHp = enemyHpForWave(wave, hpExponent)
           const jitter = 1 + (Math.random() * 2 - 1) * CONFIG.enemySpeedJitter
           enemies.push({
             id: serial,
@@ -678,7 +680,7 @@ export function BattleView({
       } else if (ended && endKind === 'win') {
         drawBanner(ctx, viewW, viewH, '这一波清完了', 1)
       } else if (ended && endKind === 'lose') {
-        drawBanner(ctx, viewW, viewH, '达达利亚倒下了', 1)
+        drawBanner(ctx, viewW, viewH, '至冬的寒风', 1)
       }
       if (hp / CONFIG.playerMaxHp <= 0.3 && hp > 0) {
         const alpha = 0.16 + Math.sin(time * 6) * 0.05
@@ -706,7 +708,7 @@ export function BattleView({
       cancelAnimationFrame(raf)
       observer.disconnect()
     }
-  }, [loadout, wave])
+  }, [loadout, wave, hpExponent])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -735,7 +737,7 @@ export function BattleView({
           <span>
             击破 <b ref={killRef}>0</b>
           </span>
-          <span className="quiet">最高 {best} 波</span>
+          <span className="quiet">{recordNote}</span>
         </div>
         <div className="chips">
           {loadout.length === 0 && <span className="quiet">背包是空的</span>}

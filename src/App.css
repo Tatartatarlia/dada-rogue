@@ -412,6 +412,100 @@ h2 {
   line-height: 1.6;
 }
 
+.ending {
+  font-size: 28px;
+  line-height: 1.45;
+}
+
+.victory {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: min(1100px, calc(100% - 32px));
+  margin: 12px auto 40px;
+}
+
+.victory-stage {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.victory .portrait {
+  width: min(260px, 70vw);
+}
+
+.medal,
+.whale {
+  display: block;
+}
+
+.history-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(560px, 100%);
+}
+
+.history-card h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  color: #f0c36a;
+}
+
+.history-card p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.history-medal {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.difficulty-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.difficulty-list button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4efe4;
+  cursor: pointer;
+}
+
+.difficulty-list span {
+  color: #f0c36a;
+}
+
 .event-choices {
   display: flex;
   flex-direction: column;

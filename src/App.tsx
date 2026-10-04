@@ -1,31 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CONFIG } from './config'
-import type { Cell, Expansion, Weapon } from './types'
-import { createShop, highestBagLevel, initialCells, shopOfferUsed } from './game/logic'
+import type { Cell, Difficulty, Expansion, GameMode, Weapon } from './types'
+import { createShop, highestBagLevel, hpExponentFor, initialCells, shopOfferUsed } from './game/logic'
 import { resolveEvent, rollEvents, type GameEvent } from './game/events'
 import { clearSave, readSave, writeSave } from './game/save'
+import { difficultyName, readHistory, recordRun, trialMedalText, type History, type RunOutcome } from './game/history'
 import { play } from './game/audio'
 import { VolumeControls } from './components/VolumeControls'
 import { ShopScreen } from './components/ShopScreen'
 import { BattleView } from './components/BattleView'
 import { EventScreen } from './components/EventScreen'
+import { HistoryDialog } from './components/HistoryDialog'
+import { Medal } from './components/Medal'
+import { Whale } from './components/Whale'
 import './App.css'
 
-type Phase = 'title' | 'event' | 'shop' | 'battle' | 'result'
+type Phase = 'title' | 'event' | 'shop' | 'battle' | 'result' | 'victory'
 
 interface Result {
   wave: number
   reason: 'dead' | 'settle'
   record: boolean
-}
-
-function readNumber(key: string): number {
-  try {
-    const value = Number(localStorage.getItem(key) || '0')
-    return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
-  } catch {
-    return 0
-  }
 }
 
 const portrait = `${import.meta.env.BASE_URL}tartaglia.webp`
@@ -39,7 +34,11 @@ export default function App() {
   const [cells, setCells] = useState<Cell[]>(() => initialCells())
   const [weapons, setWeapons] = useState<Weapon[]>([])
   const [expansion, setExpansion] = useState<Expansion | null>(null)
-  const [best, setBest] = useState(() => readNumber(CONFIG.bestStorageKey))
+  const [history, setHistory] = useState<History>(() => readHistory())
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [pickDifficulty, setPickDifficulty] = useState(false)
+  const [mode, setMode] = useState<GameMode>('endless')
+  const [difficulty, setDifficulty] = useState<Difficulty>('easy')
   const [hero, setHero] = useState<HTMLImageElement | null>(() =>
     heroImage.complete && heroImage.naturalWidth > 0 ? heroImage : null,
   )
@@ -71,30 +70,35 @@ export default function App() {
     [weapons],
   )
 
+  function remember(outcome: RunOutcome, reached: number) {
+    const next = recordRun(history, {
+      mode,
+      difficulty: mode === 'endless' ? difficulty : null,
+      wave: Math.max(0, reached),
+      outcome,
+    })
+    setHistory(next.history)
+    return next
+  }
+
   function finish(reached: number, reason: Result['reason']) {
     const waveReached = Math.max(0, reached)
-    const record = waveReached > best && waveReached > 0
-    const nextBest = Math.max(best, waveReached)
-    if (nextBest !== best) {
-      try {
-        localStorage.setItem(CONFIG.bestStorageKey, String(nextBest))
-      } catch {
-        /* 记不住最高波数时，这一局的结算界面仍然照常显示 */
-      }
-      setBest(nextBest)
-    }
+    const next = remember(reason, waveReached)
     if (saveTied) {
       clearSave()
       setSave(null)
       setSaveTied(false)
     }
-    setResult({ wave: waveReached, reason, record })
+    setResult({ wave: waveReached, reason, record: next.record })
     setPhase('result')
   }
 
-  function startRun() {
+  function startRun(nextMode: GameMode, nextDifficulty: Difficulty | null = null) {
     const shop = createShop(1)
     play('click')
+    setMode(nextMode)
+    setDifficulty(nextMode === 'endless' ? (nextDifficulty ?? 'easy') : 'easy')
+    setPickDifficulty(false)
     setWave(1)
     setCells(initialCells())
     setWeapons(shop.weapons)
@@ -107,6 +111,7 @@ export default function App() {
     setEventCards([])
     setResult(null)
     setSaveTied(false)
+    setHistoryOpen(false)
     setPhase('shop')
   }
 
@@ -120,6 +125,8 @@ export default function App() {
     setFrozen(next.frozen)
     setDemonArmed(next.demonArmed)
     setGiftExpansion(next.giftExpansion)
+    setMode(next.mode)
+    setDifficulty(next.difficulty ?? 'easy')
     setEventCards([])
     setResult(null)
     setPhase('shop')
@@ -149,6 +156,8 @@ export default function App() {
       frozen,
       demonArmed,
       giftExpansion,
+      mode,
+      difficulty: mode === 'endless' ? difficulty : null,
     }
     const ok = writeSave(next)
     if (ok) {
@@ -194,6 +203,18 @@ export default function App() {
   }
 
   function afterWin() {
+    if (mode === 'trial' && wave >= CONFIG.trialWaves) {
+      const next = remember('clear', wave)
+      if (saveTied) {
+        clearSave()
+        setSave(null)
+        setSaveTied(false)
+      }
+      setResult(null)
+      setHistory(next.history)
+      setPhase('victory')
+      return
+    }
     const nextWave = wave + 1
     if (wave > 0 && wave % CONFIG.eventEveryWaves === 0) {
       const cards = rollEvents(
@@ -215,6 +236,23 @@ export default function App() {
   }
 
   const offerUsed = shopOfferUsed(weapons, shopOffer)
+  const exponent = hpExponentFor(mode, mode === 'endless' ? difficulty : null)
+  const chapter =
+    mode === 'trial'
+      ? `执行官的试炼 · 第 ${wave} / ${CONFIG.trialWaves} 波之前`
+      : `极限 · ${difficultyName(difficulty)} · 第 ${wave} 波之前`
+  const finale = mode === 'trial' && wave >= CONFIG.trialWaves
+  const recordNote =
+    mode === 'trial'
+      ? `终点 ${CONFIG.trialWaves} 波`
+      : history.endless[difficulty] > 0
+        ? `${difficultyName(difficulty)}最高 ${history.endless[difficulty]} 波`
+        : `${difficultyName(difficulty)}尚无记录`
+  const saveCaption = save
+    ? save.mode === 'trial'
+      ? `存档停在执行官的试炼第 ${save.wave} 波之前`
+      : `存档停在极限·${difficultyName(save.difficulty ?? 'easy')}第 ${save.wave} 波之前`
+    : ''
 
   function refreshShop() {
     if (shopRefreshed || offerUsed) return
@@ -233,7 +271,9 @@ export default function App() {
       {phase !== 'battle' && (
         <div className="topbar">
           <span className="brand">达达利亚的行囊</span>
-          <span>历史最高 {best > 0 ? `${best} 波` : '尚无记录'}</span>
+          <button type="button" className="text-btn" onClick={() => setHistoryOpen(true)}>
+            历史记录
+          </button>
           <VolumeControls />
         </div>
       )}
@@ -246,6 +286,12 @@ export default function App() {
             <h1>达达利亚的行囊</h1>
             <ul>
               <li>开局先进入商店，把武器拖进 3×3 的背包。</li>
+              <li>
+                「执行官的试炼」固定 {CONFIG.trialWaves} 波，敌人血量指数 {CONFIG.trialHpExponent.toFixed(2)}
+                ，通关后颁发奖章。「达达利亚的极限」没有尽头，先选简单、普通或困难，血量指数分别是{' '}
+                {CONFIG.endlessHpExponent.easy.toFixed(2)}、{CONFIG.endlessHpExponent.normal.toFixed(2)}、
+                {CONFIG.endlessHpExponent.hard.toFixed(2)}。
+              </li>
               <li>武器可以先放在背包任意位置，点一下武器再点旋转调整方向。没放进格子就不能进入下一波。拖回商店可以放回去。</li>
               <li>两件相同等级的武器可以合成一件高一级的武器，攻击力是原先两件加起来的 {CONFIG.mergeMultiplier} 倍。武器合成至2级和4级时可解锁额外效果。</li>
               <li>
@@ -269,21 +315,20 @@ export default function App() {
               <li>优化了手机端体验，防止手机端上下滚动屏幕时误触武器拖放。若手机端想要拖放商店内武器，请先按住武器后再水平滑动，此时即可拖放武器。</li>
             </ul>
             <div className="title-actions">
-              {save ? (
+              {save && (
                 <>
                   <button type="button" className="primary" onClick={continueSave}>
                     从存档开始
                   </button>
-                  <button type="button" className="text-btn" onClick={startRun}>
-                    新开一局
-                  </button>
-                  <p className="quiet">存档停在第 {save.wave} 波之前</p>
+                  <p className="quiet">{saveCaption}</p>
                 </>
-              ) : (
-                <button type="button" className="primary" onClick={startRun}>
-                  进入商店
-                </button>
               )}
+              <button type="button" className="primary" onClick={() => startRun('trial')}>
+                执行官的试炼
+              </button>
+              <button type="button" className="text-btn" onClick={() => setPickDifficulty(true)}>
+                达达利亚的极限
+              </button>
             </div>
           </div>
         </main>
@@ -321,6 +366,9 @@ export default function App() {
           canSave={wave > 1}
           onSave={saveProgress}
           previousSaveWave={save && !saveTied ? save.wave : null}
+          hpExponent={exponent}
+          chapter={chapter}
+          finale={finale}
         />
       )}
 
@@ -329,7 +377,8 @@ export default function App() {
           wave={wave}
           loadout={loadout}
           hero={hero}
-          best={best}
+          hpExponent={exponent}
+          recordNote={recordNote}
           onWin={afterWin}
           onLose={() => finish(wave, 'dead')}
           onSettle={() => finish(wave, 'settle')}
@@ -345,12 +394,20 @@ export default function App() {
             draggable={false}
           />
           <div>
-            <h1>{result.reason === 'dead' ? '达达利亚倒下了' : '本次到此为止'}</h1>
-            <p className="score">{result.wave > 0 ? `到达第 ${result.wave} 波` : '还没有迎战敌人'}</p>
+            <h1 className="ending">
+              {result.reason === 'settle'
+                ? result.wave > 0
+                  ? `第 ${result.wave} 波，达达利亚收起了武器，这场战斗到此为止。`
+                  : '达达利亚收起了武器，这场战斗到此为止。'
+                : `达达利亚在至冬的寒风里撑到了第 ${Math.max(1, result.wave)} 波，不愧是执行官。`}
+            </h1>
             {result.record && <p className="record">新纪录</p>}
-            <p>历史最高 {best > 0 ? `${best} 波` : '尚无记录'}</p>
             <div className="result-actions">
-              <button type="button" className="primary" onClick={startRun}>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => startRun(mode, mode === 'endless' ? difficulty : null)}
+              >
                 再来一局
               </button>
               <button type="button" className="text-btn" onClick={() => setPhase('title')}>
@@ -359,6 +416,53 @@ export default function App() {
             </div>
           </div>
         </main>
+      )}
+
+      {phase === 'victory' && (
+        <main className="victory">
+          <div className="victory-stage">
+            <img src={portrait} alt="达达利亚" className="portrait" draggable={false} />
+            <Medal text={trialMedalText(history.trialClears)} size={300} />
+            <Whale width={240} height={168} />
+          </div>
+          <div className="result-actions">
+            <button type="button" className="primary" onClick={() => startRun('trial')}>
+              再挑战一次
+            </button>
+            <button type="button" className="text-btn" onClick={() => setPhase('title')}>
+              返回标题
+            </button>
+          </div>
+        </main>
+      )}
+
+      {historyOpen && <HistoryDialog history={history} onClose={() => setHistoryOpen(false)} />}
+      {pickDifficulty && (
+        <div
+          className="event-result"
+          role="dialog"
+          aria-modal="true"
+          aria-label="选择难度"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setPickDifficulty(false)
+          }}
+        >
+          <div className="event-result-card">
+            <h2>达达利亚的极限</h2>
+            <p className="event-result-text">没有固定的终点。先选这一局的难度，血量指数越高，后面的敌人越难打。</p>
+            <div className="difficulty-list">
+              {(['easy', 'normal', 'hard'] as const).map((item) => (
+                <button key={item} type="button" onClick={() => startRun('endless', item)}>
+                  <strong>{difficultyName(item)}</strong>
+                  <span>血量指数 {CONFIG.endlessHpExponent[item].toFixed(2)}</span>
+                </button>
+              ))}
+            </div>
+            <button type="button" className="text-btn" onClick={() => setPickDifficulty(false)}>
+              再想想
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

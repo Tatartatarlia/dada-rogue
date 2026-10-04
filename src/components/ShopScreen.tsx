@@ -103,6 +103,9 @@ export function ShopScreen({
   canSave,
   onSave,
   previousSaveWave,
+  hpExponent,
+  chapter,
+  finale,
 }: {
   wave: number
   cells: Cell[]
@@ -124,6 +127,9 @@ export function ShopScreen({
   canSave: boolean
   onSave: () => boolean
   previousSaveWave: number | null
+  hpExponent: number
+  chapter: string
+  finale: boolean
 }) {
   const boardRef = useRef<HTMLDivElement>(null)
   const boardScrollRef = useRef<HTMLDivElement>(null)
@@ -740,7 +746,7 @@ export function ShopScreen({
     <section className="shop">
       <header className="shop-head">
         <div>
-          <p className="eyebrow">第 {wave} 波之前</p>
+          <p className="eyebrow">{chapter}</p>
           <h2>行囊</h2>
         </div>
         <div className="hp-readout">
@@ -921,8 +927,8 @@ export function ShopScreen({
             {drag?.kind === 'weapon' && drag.weapon.where === 'bag' && drag.overShop
               ? '松手，这件武器会回到商店'
               : shopWeapons.some((weapon) => weapon.mark === 'rift')
-                ? `下一波 ${CONFIG.enemyCount} 名敌人，每位 ${enemyHpForWave(wave)} 点生命。标着「断流」的是额外的，原来的三件货还在。`
-                : `下一波 ${CONFIG.enemyCount} 名敌人，每位 ${enemyHpForWave(wave)} 点生命。三件都可以拿走，放不下的会留下。`}
+                ? `下一波 ${CONFIG.enemyCount} 名敌人，每位 ${enemyHpForWave(wave, hpExponent)} 点生命。标着「断流」的是额外的，原来的三件货还在。${finale ? '过了这一波，试炼就通关。' : ''}`
+                : `下一波 ${CONFIG.enemyCount} 名敌人，每位 ${enemyHpForWave(wave, hpExponent)} 点生命。三件都可以拿走，放不下的会留下。${finale ? '过了这一波，试炼就通关。' : ''}`}
           </p>
           {shopWeapons.map((weapon) => {
             const stat = CONFIG.weapons[weapon.type]
@@ -989,7 +995,7 @@ export function ShopScreen({
               onStart()
             }}
           >
-            迎接第 {wave} 波
+            {finale ? '迎接最后一波' : `迎接第 ${wave} 波`}
           </button>
           {canSave && !askOverwrite && (
             <button

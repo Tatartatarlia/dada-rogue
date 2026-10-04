@@ -66,9 +66,18 @@ export const CONFIG = {
 
   enemyCount: 40,//敌人数量
   enemyBaseHp: 120,
-  /** 生命 = 基础生命 × (1 + 这个数 × 波数) × enemyHpExponent ^ 波数 */
+  /** 生命 = 基础生命 × (1 + 这个数 × 波数) × 指数 ^ 波数。指数按模式另算。 */
   enemyHpLinear: 0.25,
-  enemyHpExponent: 1.09,
+  /** 执行官的试炼一共这么多波，打完即通关。 */
+  trialWaves: 50,
+  /** 试炼的生命指数。 */
+  trialHpExponent: 1.1,
+  /** 达达利亚的极限：简单、普通、困难的生命指数。 */
+  endlessHpExponent: {
+    easy: 1.09,
+    normal: 1.1,
+    hard: 1.11,
+  },
   /**
    * 所有武器共用暴击，看背包里等级最高的那件。
    * 暴击率 = critRateBase + 最高等级 × critRatePerLevel
@@ -222,6 +231,7 @@ export const CONFIG = {
   groundBotRatio: 0.9,
 
   bestStorageKey: 'dada-rogue-best-wave',
+  historyStorageKey: 'dada-rogue-history',
   /** 旧的总开关。新存档用音效音量；读到「关」且还没有音效音量时，音效从 0 开始 */
   muteStorageKey: 'dada-rogue-muted',
   sfxVolumeKey: 'dada-rogue-sfx-volume',

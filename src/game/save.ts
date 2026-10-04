@@ -1,5 +1,5 @@
 import { CONFIG } from '../config'
-import type { Cell, Expansion, Weapon, WeaponType } from '../types'
+import type { Cell, Difficulty, Expansion, GameMode, Weapon, WeaponType } from '../types'
 
 const WEAPON_TYPES = new Set<WeaponType>(['axe', 'dart', 'sword', 'molotov', 'bomb', 'potion'])
 
@@ -20,6 +20,8 @@ export interface RunSave {
   frozen: Cell[]
   demonArmed: boolean
   giftExpansion: Expansion | null
+  mode: GameMode
+  difficulty: Difficulty | null
 }
 
 function isCell(value: unknown): value is Cell {
@@ -79,6 +81,9 @@ export function readSave(): RunSave | null {
     if (data.frozen !== undefined && (!Array.isArray(data.frozen) || !data.frozen.every(isCell))) return null
     if (data.demonArmed !== undefined && typeof data.demonArmed !== 'boolean') return null
     if (data.giftExpansion !== undefined && data.giftExpansion !== null && !isExpansion(data.giftExpansion)) return null
+    const mode: GameMode = data.mode === 'trial' ? 'trial' : 'endless'
+    const difficulty: Difficulty | null =
+      mode === 'trial' ? null : data.difficulty === 'normal' || data.difficulty === 'hard' ? data.difficulty : 'easy'
     const wave = data.wave
     return {
       version: 1,
@@ -95,6 +100,8 @@ export function readSave(): RunSave | null {
       frozen: Array.isArray(data.frozen) ? data.frozen.map((cell) => ({ x: cell.x, y: cell.y })) : [],
       demonArmed: data.demonArmed === true,
       giftExpansion: data.giftExpansion ? { ...data.giftExpansion } : null,
+      mode,
+      difficulty,
     }
   } catch {
     return null

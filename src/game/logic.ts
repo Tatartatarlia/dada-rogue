@@ -1,5 +1,5 @@
 import { CONFIG } from '../config'
-import type { Cell, Expansion, Weapon, WeaponType } from '../types'
+import type { Cell, Difficulty, Expansion, GameMode, Weapon, WeaponType } from '../types'
 
 export const WEAPON_TYPES: WeaponType[] = ['axe', 'dart', 'sword', 'molotov', 'bomb', 'potion']
 
@@ -215,9 +215,16 @@ function effectDetail(type: WeaponType, level: number): string {
   }
 }
 
-export function enemyHpForWave(wave: number): number {
+export function enemyHpForWave(wave: number, exponent: number): number {
   const linear = 1 + CONFIG.enemyHpLinear * wave
-  return Math.max(1, Math.round(CONFIG.enemyBaseHp * linear * CONFIG.enemyHpExponent ** wave))
+  return Math.max(1, Math.round(CONFIG.enemyBaseHp * linear * exponent ** wave))
+}
+
+export function hpExponentFor(mode: GameMode, difficulty: Difficulty | null): number {
+  if (mode === 'trial') return CONFIG.trialHpExponent
+  if (difficulty === 'hard') return CONFIG.endlessHpExponent.hard
+  if (difficulty === 'normal') return CONFIG.endlessHpExponent.normal
+  return CONFIG.endlessHpExponent.easy
 }
 
 export function enemySpeedForWave(wave: number): number {
