@@ -59,7 +59,7 @@ export const CONFIG = {
    * 在这之前仍只用 shopLevelBands。
    */
   shopBagCapAfterWave: 20,
-  shopBagLevelGap: 2,
+  shopBagLevelGap: 3,
   shopMinLevelCap: 4,
   /** 魔王武装·改：下一次合成的攻击力 = 两件攻击之和 × 这个数，并丢弃背包里等级最低的一件。 */
   demonMergeMultiplier: 1.25,
