@@ -1,6 +1,6 @@
 import { CONFIG } from '../config'
 import type { Cell, Expansion, Weapon, WeaponType } from '../types'
-import { createShop, keyOf, uid, WEAPON_TYPES, worldCells } from './logic'
+import { createShop, highestBagLevel, keyOf, uid, WEAPON_TYPES, worldCells } from './logic'
 
 export type EventKind = 'rift' | 'bargain' | 'frost' | 'armory' | 'demon'
 
@@ -196,7 +196,7 @@ function buildArmory(bag: Weapon[]): GameEvent {
 function buildDemon(bag: Weapon[]): GameEvent {
   const minLevel = bag.reduce((min, weapon) => Math.min(min, weapon.level), Infinity)
   const weakest = pickOne(bag.filter((weapon) => weapon.level === minLevel))
-  const bonus = Math.round(CONFIG.demonMergeBonus * 100)
+  const bonus = CONFIG.demonMergeMultiplier
   const cost = !weakest
     ? '背包里没有武器可丢。'
     : bag.length === 1
@@ -206,7 +206,7 @@ function buildDemon(bag: Weapon[]): GameEvent {
     id: uid('ev'),
     kind: 'demon',
     ...COPY.demon,
-    content: `${cost}之后第一次合成不减少攻击力，还会再提高${bonus}%。`,
+    content: `${cost}之后第一次合成的攻击力是两件之和 × ${bonus}。`,
     demon: { removeId: weakest?.id ?? null },
   }
 }
@@ -235,11 +235,11 @@ export function resolveEvent(
   cells: Cell[]
   frozen: Cell[]
   demonArmed: boolean
-  expansion: Expansion
+  expansion: Expansion | null
   giftExpansion: Expansion | null
   shopOffer: { id: string; level: number }[]
 } {
-  const shop = createShop(nextWave)
+  const shop = createShop(nextWave, highestBagLevel(bag))
   let nextBag = bag.map((weapon) => ({ ...weapon }))
   let nextCells = cells.map((cell) => ({ ...cell }))
   let nextFrozen = frozen.map((cell) => ({ ...cell }))

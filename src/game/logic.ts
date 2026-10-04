@@ -88,12 +88,10 @@ export function worldCells(weapon: Pick<Weapon, 'type' | 'rotation' | 'x' | 'y'>
 }
 
 export function attackOf(type: WeaponType, level: number): number {
-  const retain = CONFIG.mergeRetain
+  const factor = CONFIG.mergeMultiplier
   let attack = CONFIG.weapons[type].attack
   for (let i = 1; i < level; i += 1) {
-    const sum = attack * 2
-    const next = Math.round(sum * retain)
-    attack = Math.max(1, Math.min(next, sum - 1))
+    attack = Math.max(1, Math.round(attack * 2 * factor))
   }
   return attack
 }
@@ -232,10 +230,13 @@ export function uid(prefix: string): string {
   return `${prefix}_${seq}_${Math.random().toString(36).slice(2, 6)}`
 }
 
-export function shopLevelForWave(wave: number): number {
-  const bands = CONFIG.shopLevelBands
-  const band = bands.find((item) => wave <= item.maxWave) ?? bands[bands.length - 1]
-  const weights = band?.weights ?? [1]
+/** 20 波之后商店能出现的最高等级。更早的波数返回 null，表示仍按档位原样抽。 */
+export function shopLevelCap(wave: number, bagHighest: number): number | null {
+  if (wave <= CONFIG.shopBagCapAfterWave) return null
+  return Math.max(CONFIG.shopMinLevelCap, bagHighest - CONFIG.shopBagLevelGap)
+}
+
+function rollBandLevel(weights: number[]): number {
   const total = weights.reduce((sum, weight) => sum + weight, 0)
   if (total <= 0) return 1
   let roll = Math.random() * total
@@ -246,12 +247,27 @@ export function shopLevelForWave(wave: number): number {
   return Math.max(1, weights.length)
 }
 
-export function createShopWeapon(wave: number): Weapon {
+export function shopLevelForWave(wave: number, bagHighest = 0): number {
+  const bands = CONFIG.shopLevelBands
+  const band = bands.find((item) => wave <= item.maxWave) ?? bands[bands.length - 1]
+  const weights = band?.weights ?? [1]
+  const rolled = rollBandLevel(weights)
+  const cap = shopLevelCap(wave, bagHighest)
+  if (cap == null) return rolled
+  const shift = Math.max(0, cap - weights.length)
+  return Math.min(cap, rolled + shift)
+}
+
+export function highestBagLevel(weapons: Weapon[]): number {
+  return weapons.reduce((max, weapon) => (weapon.where === 'bag' ? Math.max(max, weapon.level) : max), 0)
+}
+
+export function createShopWeapon(wave: number, bagHighest = 0): Weapon {
   const type = WEAPON_TYPES[Math.floor(Math.random() * WEAPON_TYPES.length)] ?? 'dart'
   return {
     id: uid('w'),
     type,
-    level: shopLevelForWave(wave),
+    level: shopLevelForWave(wave, bagHighest),
     rotation: 0,
     x: 0,
     y: 0,
@@ -259,9 +275,18 @@ export function createShopWeapon(wave: number): Weapon {
   }
 }
 
-export function createExpansion(): Expansion {
-  const count: 1 | 2 = Math.random() < CONFIG.expansionPairChance ? 2 : 1
-  return { id: uid('ex'), count, rotation: 0 }
+/** 这一波商店是否赠送 1 格空位。1–20 每波，21–40 每 2 波，41 起每 3 波。 */
+export function grantsCell(wave: number): boolean {
+  if (wave <= CONFIG.expansionEarlyThrough) return true
+  if (wave <= CONFIG.expansionMidThrough) {
+    return (wave - CONFIG.expansionEarlyThrough) % CONFIG.expansionMidInterval === 0
+  }
+  return (wave - CONFIG.expansionMidThrough) % CONFIG.expansionLateInterval === 0
+}
+
+export function createExpansion(wave: number): Expansion | null {
+  if (!grantsCell(wave)) return null
+  return { id: uid('ex'), count: 1, rotation: 0 }
 }
 
 /**
@@ -285,9 +310,9 @@ function openingOfferKey(types: WeaponType[]): string {
     .join('+')
 }
 
-function createShopWeapons(wave: number): Weapon[] {
+function createShopWeapons(wave: number, bagHighest: number): Weapon[] {
   const count = CONFIG.shopWeaponCount
-  const roll = () => Array.from({ length: count }, () => createShopWeapon(wave))
+  const roll = () => Array.from({ length: count }, () => createShopWeapon(wave, bagHighest))
   if (wave !== 1 || count !== 3) return roll()
   const limit = CONFIG.openingShopRerolls
   for (let attempt = 0; attempt < limit; attempt += 1) {
@@ -295,16 +320,16 @@ function createShopWeapons(wave: number): Weapon[] {
     if (!OPENING_UNWINNABLE.has(openingOfferKey(weapons.map((weapon) => weapon.type)))) return weapons
   }
   const weapons = roll()
-  const bomb = createShopWeapon(wave)
+  const bomb = createShopWeapon(wave, bagHighest)
   bomb.type = 'bomb'
   weapons[0] = bomb
   return weapons
 }
 
-export function createShop(wave: number): { weapons: Weapon[]; expansion: Expansion } {
+export function createShop(wave: number, bagHighest = 0): { weapons: Weapon[]; expansion: Expansion | null } {
   return {
-    weapons: createShopWeapons(wave),
-    expansion: createExpansion(),
+    weapons: createShopWeapons(wave, bagHighest),
+    expansion: createExpansion(wave),
   }
 }
 
@@ -485,9 +510,8 @@ export function resolveWeaponDrop(args: {
     let bonusAttack: number | undefined
     if (carried) {
       const sum = weaponAttack(weapon) + weaponAttack(target)
-      const total = empowered
-        ? Math.max(1, Math.round(sum * (1 + CONFIG.demonMergeBonus)))
-        : Math.max(1, Math.min(Math.round(sum * CONFIG.mergeRetain), sum - 1))
+      const factor = empowered ? CONFIG.demonMergeMultiplier : CONFIG.mergeMultiplier
+      const total = Math.max(1, Math.round(sum * factor))
       const bonus = total - attackOf(target.type, nextLevel)
       if (bonus !== 0) bonusAttack = bonus
     }

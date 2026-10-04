@@ -29,13 +29,21 @@ export const CONFIG = {
     { maxWave: 12, weights: [0, 4, 1, 0] },
     { maxWave: Number.POSITIVE_INFINITY, weights: [0, 9, 9, 2] },
   ],
-  /** 商店给出「两格相连」空位的概率，否则只给 1 格 */
-  expansionPairChance: 0.5,
   /**
-   * 合成保留系数。
-   * 两件同等级武器合成后，新攻击力约为两者之和乘以这个数，因此会略低一点。
+   * 商店赠送 1 格空位的节奏。
+   * 1 到 expansionEarlyThrough 波：每波送 1 格。
+   * 之后到 expansionMidThrough 波：每 expansionMidInterval 波送 1 格。
+   * 再往后：每 expansionLateInterval 波送 1 格。
    */
-  mergeRetain: 0.86,
+  expansionEarlyThrough: 20,
+  expansionMidThrough: 40,
+  expansionMidInterval: 2,
+  expansionLateInterval: 3,
+  /**
+   * 合成倍率。
+   * 两件武器合成后，攻击力 = 两者攻击之和 × 这个数。
+   */
+  mergeMultiplier: 1.1,
   /** 打完这么多波（开局那次商店不算），进下一家商店之前弹出事件 */
   eventEveryWaves: 5,
   /** 断流换来的每把武器，等级与被换武器相差不超过这个数 */
@@ -47,10 +55,14 @@ export const CONFIG = {
   /** 冰封之痕额外给出的相连空格。2 就是一块两格，1 就是单独一格 */
   frostExtraCells: 2,
   /**
-   * 魔王武装·改：下一次合成的攻击力 = 两件攻击之和 × (1 + 这个数)。
-   * 没有合成损耗，再额外提高这么多。
+   * 波数大于这个数之后，商店最高等级 = max(shopMinLevelCap, 背包最高等级 - shopBagLevelGap)。
+   * 在这之前仍只用 shopLevelBands。
    */
-  demonMergeBonus: 0.15,
+  shopBagCapAfterWave: 20,
+  shopBagLevelGap: 2,
+  shopMinLevelCap: 4,
+  /** 魔王武装·改：下一次合成的攻击力 = 两件攻击之和 × 这个数，并丢弃背包里等级最低的一件。 */
+  demonMergeMultiplier: 1.25,
 
   enemyCount: 40,//敌人数量
   enemyBaseHp: 120,

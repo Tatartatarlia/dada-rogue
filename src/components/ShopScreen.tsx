@@ -286,7 +286,7 @@ export function ShopScreen({
     if (result.consumedDemon) onDemonRef.current(false)
     if (result.mergedLevel) {
       play('merge')
-      flash(result.consumedDemon ? `魔王武装发动，合成到 ${result.mergedLevel} 级，攻击没有损耗` : `合成成功，等级 ${result.mergedLevel}`)
+      flash(result.consumedDemon ? `魔王武装发动，合成到 ${result.mergedLevel} 级，攻击力是两者之和的 ${CONFIG.demonMergeMultiplier} 倍` : `合成成功，等级 ${result.mergedLevel}`)
       return
     }
     const placed = result.weapons.find((item) => item.id === current.weapon.id)
@@ -892,7 +892,7 @@ export function ShopScreen({
           {frozen.length > 0 && <p className="quiet">冰封格子不能放武器，也不能把空格子贴上去。</p>}
           {demonArmed && (
             <p className="quiet">
-              魔王武装还在：下一次合成不掉攻击，还会再提高 {Math.round(CONFIG.demonMergeBonus * 100)}%。
+              魔王武装还在：下一次合成的攻击力是两件之和 × {CONFIG.demonMergeMultiplier}。
             </p>
           )}
         </div>
