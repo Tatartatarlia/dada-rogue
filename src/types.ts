@@ -2,8 +2,6 @@ export type WeaponType = 'axe' | 'dart' | 'sword' | 'molotov' | 'bomb' | 'potion
 
 export type GameMode = 'trial' | 'endless'
 
-export type Difficulty = 'easy' | 'normal' | 'hard'
-
 export interface WeaponStat {
   name: string
   attack: number

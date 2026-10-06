@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CONFIG } from './config'
-import type { Cell, Difficulty, Expansion, GameMode, Weapon } from './types'
-import { createShop, highestBagLevel, hpExponentFor, initialCells, shopOfferUsed } from './game/logic'
+import type { Cell, Expansion, GameMode, Weapon } from './types'
+import { createShop, difficultyLabel, highestBagLevel, hpExponentFor, initialCells, shopOfferUsed } from './game/logic'
 import { resolveEvent, rollEvents, type GameEvent } from './game/events'
 import { clearSave, readSave, writeSave } from './game/save'
-import { difficultyName, readHistory, recordRun, trialMedalText, type History, type RunOutcome } from './game/history'
+import { endlessWave, readHistory, recordRun, trialMedalText, type History, type RunOutcome } from './game/history'
 import { play } from './game/audio'
 import { VolumeControls } from './components/VolumeControls'
 import { ShopScreen } from './components/ShopScreen'
@@ -39,9 +39,10 @@ export default function App() {
   const [history, setHistory] = useState<History>(() => readHistory())
   const [historyOpen, setHistoryOpen] = useState(false)
   const [rulesOpen, setRulesOpen] = useState(false)
-  const [pickDifficulty, setPickDifficulty] = useState(false)
+  const [pickMode, setPickMode] = useState<GameMode | null>(null)
+  const [difficultyDraft, setDifficultyDraft] = useState(1)
   const [mode, setMode] = useState<GameMode>('endless')
-  const [difficulty, setDifficulty] = useState<Difficulty>('easy')
+  const [difficulty, setDifficulty] = useState(1)
   const [hero, setHero] = useState<HTMLImageElement | null>(() =>
     heroImage.complete && heroImage.naturalWidth > 0 ? heroImage : null,
   )
@@ -84,7 +85,7 @@ export default function App() {
   function remember(outcome: RunOutcome, reached: number) {
     const next = recordRun(history, {
       mode,
-      difficulty: mode === 'endless' ? difficulty : null,
+      difficulty,
       wave: Math.max(0, reached),
       outcome,
     })
@@ -104,12 +105,17 @@ export default function App() {
     setPhase('result')
   }
 
-  function startRun(nextMode: GameMode, nextDifficulty: Difficulty | null = null) {
+  function openDifficulty(nextMode: GameMode) {
+    setDifficultyDraft(1)
+    setPickMode(nextMode)
+  }
+
+  function startRun(nextMode: GameMode, nextLevel: number) {
     const shop = createShop(1)
     play('click')
     setMode(nextMode)
-    setDifficulty(nextMode === 'endless' ? (nextDifficulty ?? 'easy') : 'easy')
-    setPickDifficulty(false)
+    setDifficulty(Math.max(1, Math.floor(nextLevel) || 1))
+    setPickMode(null)
     setWave(1)
     setCells(initialCells())
     setWeapons(shop.weapons)
@@ -137,7 +143,7 @@ export default function App() {
     setDemonArmed(next.demonArmed)
     setGiftExpansion(next.giftExpansion)
     setMode(next.mode)
-    setDifficulty(next.difficulty ?? 'easy')
+    setDifficulty(next.difficulty)
     setEventCards([])
     setResult(null)
     setPhase('shop')
@@ -168,7 +174,7 @@ export default function App() {
       demonArmed,
       giftExpansion,
       mode,
-      difficulty: mode === 'endless' ? difficulty : null,
+      difficulty,
     }
     const ok = writeSave(next)
     if (ok) {
@@ -247,22 +253,24 @@ export default function App() {
   }
 
   const offerUsed = shopOfferUsed(weapons, shopOffer)
-  const exponent = hpExponentFor(mode, mode === 'endless' ? difficulty : null)
+  const exponent = hpExponentFor(difficulty)
+  const levelText = difficultyLabel(difficulty)
   const chapter =
     mode === 'trial'
-      ? `执行官的试炼 · 第 ${wave} / ${CONFIG.trialWaves} 波之前`
-      : `极限 · ${difficultyName(difficulty)} · 第 ${wave} 波之前`
+      ? `执行官的试炼 · ${levelText} · 第 ${wave} / ${CONFIG.trialWaves} 波之前`
+      : `极限 · ${levelText} · 第 ${wave} 波之前`
   const finale = mode === 'trial' && wave >= CONFIG.trialWaves
+  const bestWave = endlessWave(history, difficulty)
   const recordNote =
     mode === 'trial'
       ? `终点 ${CONFIG.trialWaves} 波`
-      : history.endless[difficulty] > 0
-        ? `${difficultyName(difficulty)}最高 ${history.endless[difficulty]} 波`
-        : `${difficultyName(difficulty)}尚无记录`
+      : bestWave > 0
+        ? `${levelText}最高 ${bestWave} 波`
+        : `${levelText}尚无记录`
   const saveCaption = save
     ? save.mode === 'trial'
-      ? `存档停在执行官的试炼第 ${save.wave} 波之前`
-      : `存档停在极限·${difficultyName(save.difficulty ?? 'easy')}第 ${save.wave} 波之前`
+      ? `存档停在执行官的试炼·${difficultyLabel(save.difficulty)}第 ${save.wave} 波之前`
+      : `存档停在极限·${difficultyLabel(save.difficulty)}第 ${save.wave} 波之前`
     : ''
 
   function refreshShop() {
@@ -310,10 +318,10 @@ export default function App() {
                   <p className="quiet">{saveCaption}</p>
                 </>
               )}
-              <button type="button" className="primary" onClick={() => startRun('trial')}>
+              <button type="button" className="primary" onClick={() => openDifficulty('trial')}>
                 执行官的试炼
               </button>
-              <button type="button" className="text-btn" onClick={() => setPickDifficulty(true)}>
+              <button type="button" className="text-btn" onClick={() => openDifficulty('endless')}>
                 达达利亚的极限
               </button>
             </div>
@@ -395,7 +403,7 @@ export default function App() {
               <button
                 type="button"
                 className="primary"
-                onClick={() => startRun(mode, mode === 'endless' ? difficulty : null)}
+                onClick={() => startRun(mode, difficulty)}
               >
                 再来一局
               </button>
@@ -411,11 +419,11 @@ export default function App() {
         <main className="victory">
           <div className="victory-stage">
             <img src={portrait} alt="达达利亚" className="portrait" draggable={false} />
-            <Medal text={trialMedalText(history.trialClears)} size={300} />
+            <Medal text={trialMedalText(difficulty)} size={300} />
             <Whale width={240} height={168} />
           </div>
           <div className="result-actions">
-            <button type="button" className="primary" onClick={() => startRun('trial')}>
+            <button type="button" className="primary" onClick={() => startRun('trial', difficulty)}>
               再挑战一次
             </button>
             <button type="button" className="text-btn" onClick={() => setPhase('title')}>
@@ -427,30 +435,44 @@ export default function App() {
 
       {historyOpen && <HistoryDialog history={history} onClose={() => setHistoryOpen(false)} />}
       {rulesOpen && <RulesDialog onClose={() => setRulesOpen(false)} />}
-      {pickDifficulty && (
+      {pickMode && (
         <div
           className="event-result"
           role="dialog"
           aria-modal="true"
           aria-label="选择难度"
           onClick={(event) => {
-            if (event.target === event.currentTarget) setPickDifficulty(false)
+            if (event.target === event.currentTarget) setPickMode(null)
           }}
         >
           <div className="event-result-card">
-            <h2>达达利亚的极限</h2>
-            <p className="event-result-text">没有固定的终点。先选这一局的难度，血量指数越高，后面的敌人越难打。</p>
-            <div className="difficulty-list">
-              {(['easy', 'normal', 'hard'] as const).map((item) => (
-                <button key={item} type="button" onClick={() => startRun('endless', item)}>
-                  <strong>{difficultyName(item)}</strong>
-                  <span>血量指数 {CONFIG.endlessHpExponent[item].toFixed(2)}</span>
-                </button>
-              ))}
+            <h2>{pickMode === 'trial' ? '执行官的试炼' : '达达利亚的极限'}</h2>
+            <p className="event-result-text">
+              {pickMode === 'trial'
+                ? `固定 ${CONFIG.trialWaves} 波。先选这一局的难度等级，括号里是敌人血量指数。`
+                : '没有固定的终点。先选这一局的难度等级，括号里是敌人血量指数。'}
+            </p>
+            <div className="difficulty-step">
+              <button
+                type="button"
+                disabled={difficultyDraft <= 1}
+                onClick={() => setDifficultyDraft((value) => Math.max(1, value - 1))}
+              >
+                －
+              </button>
+              <strong>{difficultyLabel(difficultyDraft)}</strong>
+              <button type="button" onClick={() => setDifficultyDraft((value) => value + 1)}>
+                ＋
+              </button>
             </div>
-            <button type="button" className="text-btn" onClick={() => setPickDifficulty(false)}>
-              再想想
-            </button>
+            <div className="title-actions">
+              <button type="button" className="primary" onClick={() => startRun(pickMode, difficultyDraft)}>
+                开始
+              </button>
+              <button type="button" className="text-btn" onClick={() => setPickMode(null)}>
+                再想想
+              </button>
+            </div>
           </div>
         </div>
       )}

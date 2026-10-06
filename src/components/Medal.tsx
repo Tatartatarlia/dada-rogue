@@ -81,9 +81,9 @@ function drawMedalFace(ctx: CanvasRenderingContext2D, size: number, text: string
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.font = `${Math.max(12, Math.round(size * 0.062))}px "KaiTi", "STKaiti", "Songti SC", serif`
-  const matched = text.match(/^达达利亚一共通关了(\d+)次执行官的试炼！$/)
+  const matched = text.match(/^达达利亚通关了难度等级(\d+)的执行官的试炼！$/)
   const lines = matched
-    ? ['达达利亚一共', `通关了${matched[1]}次`, '执行官的试炼！']
+    ? ['达达利亚通关了', `难度等级${matched[1]}的`, '执行官的试炼！']
     : wrapText(ctx, text, radius * 1.25)
   const lineHeight = Math.max(16, size * 0.078)
   const top = cy - ((lines.length - 1) * lineHeight) / 2 + radius * 0.08

@@ -66,18 +66,14 @@ export const CONFIG = {
 
   enemyCount: 40,//敌人数量
   enemyBaseHp: 120,
-  /** 生命 = 基础生命 × (1 + 这个数 × 波数) × 指数 ^ 波数。指数按模式另算。 */
+  /** 生命 = 基础生命 × (1 + 这个数 × 波数) × 指数 ^ 波数。指数由难度等级决定。 */
   enemyHpLinear: 0.25,
   /** 执行官的试炼一共这么多波，打完即通关。 */
   trialWaves: 50,
-  /** 试炼的生命指数。 */
-  trialHpExponent: 1.1,
-  /** 达达利亚的极限：简单、普通、困难的生命指数。 */
-  endlessHpExponent: {
-    easy: 1.09,
-    normal: 1.1,
-    hard: 1.11,
-  },
+  /** 难度等级 1 的敌人血量指数。试炼和极限共用。 */
+  hpExponentBase: 1.09,
+  /** 难度等级每高 1 级，血量指数增加这么多。 */
+  hpExponentStep: 0.005,
   /**
    * 所有武器共用暴击，看背包里等级最高的那件。
    * 暴击率 = critRateBase + 最高等级 × critRatePerLevel

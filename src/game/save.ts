@@ -1,5 +1,6 @@
 import { CONFIG } from '../config'
-import type { Cell, Difficulty, Expansion, GameMode, Weapon, WeaponType } from '../types'
+import { legacyDifficultyLevel } from './logic'
+import type { Cell, Expansion, GameMode, Weapon, WeaponType } from '../types'
 
 const WEAPON_TYPES = new Set<WeaponType>(['axe', 'dart', 'sword', 'molotov', 'bomb', 'potion'])
 
@@ -21,7 +22,7 @@ export interface RunSave {
   demonArmed: boolean
   giftExpansion: Expansion | null
   mode: GameMode
-  difficulty: Difficulty | null
+  difficulty: number
 }
 
 function isCell(value: unknown): value is Cell {
@@ -82,8 +83,7 @@ export function readSave(): RunSave | null {
     if (data.demonArmed !== undefined && typeof data.demonArmed !== 'boolean') return null
     if (data.giftExpansion !== undefined && data.giftExpansion !== null && !isExpansion(data.giftExpansion)) return null
     const mode: GameMode = data.mode === 'trial' ? 'trial' : 'endless'
-    const difficulty: Difficulty | null =
-      mode === 'trial' ? null : data.difficulty === 'normal' || data.difficulty === 'hard' ? data.difficulty : 'easy'
+    const difficulty = legacyDifficultyLevel(data.difficulty, mode)
     const wave = data.wave
     return {
       version: 1,

@@ -7,10 +7,7 @@ export function GameRules({ entry = false }: { entry?: boolean }) {
     <ul className="rules-list">
       <li>开局先进入商店，把武器拖进 3×3 的背包。</li>
       <li>
-        「执行官的试炼」固定 {CONFIG.trialWaves} 波，敌人血量指数 {CONFIG.trialHpExponent.toFixed(2)}
-        ，通关后颁发奖章。「达达利亚的极限」没有尽头，先选简单、普通或困难，血量指数分别是{' '}
-        {CONFIG.endlessHpExponent.easy.toFixed(2)}、{CONFIG.endlessHpExponent.normal.toFixed(2)}、
-        {CONFIG.endlessHpExponent.hard.toFixed(2)}。
+        「执行官的试炼」固定 {CONFIG.trialWaves} 波，通关后颁发奖章。「达达利亚的极限」没有尽头。两种模式都先选难度等级，从 1 起，血量指数 {CONFIG.hpExponentBase.toFixed(3)}，每高 1 级增加 {CONFIG.hpExponentStep.toFixed(3)}。指数写在难度等级后面的括号里。
       </li>
       <li>武器可以先放在背包任意位置，点一下武器再点旋转调整方向。没放进格子就不能进入下一波。拖回商店可以放回去。</li>
       <li>两件相同等级的武器可以合成一件高一级的武器，攻击力是原先两件加起来的 {CONFIG.mergeMultiplier} 倍。武器合成至2级和4级时可解锁额外效果。</li>

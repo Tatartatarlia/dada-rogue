@@ -483,28 +483,34 @@ h2 {
   gap: 12px;
 }
 
-.difficulty-list {
+.difficulty-step {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 14px;
 }
 
-.difficulty-list button {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
+.difficulty-step button {
+  width: 44px;
+  height: 44px;
   border: 0;
-  border-radius: 12px;
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
   color: #f4efe4;
+  font-size: 22px;
   cursor: pointer;
 }
 
-.difficulty-list span {
+.difficulty-step button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.difficulty-step strong {
   color: #f0c36a;
+  font-size: 18px;
+  text-align: center;
 }
 
 .rules-card {

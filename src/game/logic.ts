@@ -1,5 +1,5 @@
 import { CONFIG } from '../config'
-import type { Cell, Difficulty, Expansion, GameMode, Weapon, WeaponType } from '../types'
+import type { Cell, Expansion, GameMode, Weapon, WeaponType } from '../types'
 
 export const WEAPON_TYPES: WeaponType[] = ['axe', 'dart', 'sword', 'molotov', 'bomb', 'potion']
 
@@ -220,11 +220,34 @@ export function enemyHpForWave(wave: number, exponent: number): number {
   return Math.max(1, Math.round(CONFIG.enemyBaseHp * linear * exponent ** wave))
 }
 
-export function hpExponentFor(mode: GameMode, difficulty: Difficulty | null): number {
-  if (mode === 'trial') return CONFIG.trialHpExponent
-  if (difficulty === 'hard') return CONFIG.endlessHpExponent.hard
-  if (difficulty === 'normal') return CONFIG.endlessHpExponent.normal
-  return CONFIG.endlessHpExponent.easy
+/** 难度等级从 1 起。等级 1 用基础指数，每高 1 级加上一档。 */
+export function hpExponentFor(level: number): number {
+  const safe = Math.max(1, Math.floor(level) || 1)
+  const milli = Math.round(CONFIG.hpExponentBase * 1000) + (safe - 1) * Math.round(CONFIG.hpExponentStep * 1000)
+  return milli / 1000
+}
+
+export function formatHpExponent(level: number): string {
+  return hpExponentFor(level).toFixed(3)
+}
+
+/** 难度等级写在前面，血量指数放在后面的括号里。 */
+export function difficultyLabel(level: number): string {
+  const safe = Math.max(1, Math.floor(level) || 1)
+  return `难度等级 ${safe}（${formatHpExponent(safe)}）`
+}
+
+/**
+ * 旧存档的简单、普通、困难。
+ * 简单是现在的 1 级（1.090），普通是 3 级（1.100），困难是 5 级（1.110）。
+ * 旧试炼固定 1.10，没有难度字段时算 3 级；旧极限缺省算 1 级。
+ */
+export function legacyDifficultyLevel(value: unknown, mode: GameMode): number {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 1) return value
+  if (value === 'hard') return 5
+  if (value === 'normal') return 3
+  if (value === 'easy') return 1
+  return mode === 'trial' ? 3 : 1
 }
 
 export function enemySpeedForWave(wave: number): number {
