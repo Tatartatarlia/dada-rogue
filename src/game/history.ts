@@ -110,7 +110,7 @@ export function difficultyName(difficulty: Difficulty): string {
 }
 
 export function trialMedalText(clears: number): string {
-  return `达达利亚一共通关了${clears}执行官的试炼！`
+  return `达达利亚一共通关了${clears}次执行官的试炼！`
 }
 
 export function lastRunText(last: LastRun | null): string {

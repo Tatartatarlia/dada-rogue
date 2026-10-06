@@ -40,4 +40,22 @@ export interface LoadoutItem {
   type: WeaponType
   level: number
   bonusAttack?: number
+  links?: WeaponLinks
+}
+
+/** 这件武器当前吃到的邻接。1 表示没有加成。 */
+export interface WeaponLinks {
+  detonate: number
+  splashVuln: number
+  intervalScale: number
+  burnMistRate: number
+  markTime: number
+  comboSure: boolean
+  comboExtra: number
+  takeAxeBonus: boolean
+  giveAxeBonus: boolean
+  scatterDamage: number
+  splashRadiusBonus: number
+  /** 0 不改目标，1 额外目标优先药雾，2 全部目标优先药雾 */
+  preferMist: 0 | 1 | 2
 }

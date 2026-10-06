@@ -120,9 +120,9 @@ export function rollCrit(highestLevel: number): { multiplier: number; crit: bool
   return { multiplier: 1 + stats.bonus, crit: true }
 }
 
-export function weaponDps(type: WeaponType, level: number, highestLevel: number, bonusAttack = 0): number {
+export function weaponDps(type: WeaponType, level: number, highestLevel: number, bonusAttack = 0, intervalScale = 1): number {
   const attack = attackOf(type, level) + bonusAttack
-  const interval = CONFIG.weapons[type].interval
+  const interval = CONFIG.weapons[type].interval * intervalScale
   const burnTime = molotovDuration(level)
   const extra = type === 'molotov' ? attack * CONFIG.burnRatio * burnTime : 0
   const crit = critStats(highestLevel)

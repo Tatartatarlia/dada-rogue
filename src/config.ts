@@ -160,6 +160,32 @@ export const CONFIG = {
   slowFactor4: 0.34,
   potionDamageTaken4: 1.4,
 
+  /**
+   * 不同武器上下左右贴住时的邻接效果。斜角不算。
+   * 一条边用前一个数，两条边及以上用后一个数。
+   * 斧头和短剑只在贴住两条边时生效。
+   */
+  /** 燃烧瓶贴炸弹：炸弹打中着火目标时，立刻打出剩余燃烧的这个比例 */
+  linkDetonate: 0.6,
+  linkDetonateFull: 1,
+  /** 药剂贴燃烧瓶：人在药雾里时，燃烧计时按这个速度减少 */
+  linkBurnMistRate: 0.72,
+  linkBurnMistRateFull: 0.55,
+  /** 飞镖贴短剑：标记最前排的秒数。两条边时连斩再多 1 下 */
+  linkMarkTime: 1.2,
+  linkMarkTimeFull: 2,
+  /** 斧头贴飞镖：溅射目标再吃飞镖攻击的这个比例 */
+  linkScatter: 0.45,
+  linkScatterFull: 0.75,
+  /** 炸弹贴斧头：炸弹攻击间隔乘以这个数 */
+  linkBombSlow: 1.12,
+  linkBombSlowFull: 1.22,
+  /** 炸弹贴斧头：斧头溅射半径额外加上炸弹爆炸半径的这个比例 */
+  linkAxeRadiusShare: 0.4,
+  linkAxeRadiusShareFull: 0.7,
+  /** 斧头贴短剑：短剑能攒下的额外连斩下数 */
+  linkSwordGiftCap: 3,
+
   projectileLife: 3,
   projectileRadius: 16,
 

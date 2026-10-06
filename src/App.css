@@ -102,7 +102,8 @@ h2 {
   font-weight: 500;
 }
 
-.title-copy ul {
+.title-copy ul,
+.rules-list {
   margin: 18px 0 22px;
   padding-left: 18px;
   color: #d5dced;
@@ -504,6 +505,86 @@ h2 {
 
 .difficulty-list span {
   color: #f0c36a;
+}
+
+.rules-card {
+  width: min(680px, 100%);
+  max-height: min(80vh, 820px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rules-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.rules-tabs button {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #d5dced;
+  cursor: pointer;
+}
+
+.rules-tabs button[aria-selected='true'] {
+  background: linear-gradient(180deg, #ffb15a, #e07a3d);
+  color: #1a120c;
+}
+
+.rules-body {
+  min-height: 0;
+  overflow: auto;
+}
+
+.rules-note {
+  margin: 0 0 12px;
+  color: #d5dced;
+  line-height: 1.5;
+}
+
+.link-rules {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.link-rules p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.link-rules strong {
+  color: #f0c36a;
+  margin-right: 8px;
+}
+
+.link-rules span {
+  color: #9eb0c8;
+}
+
+.link-bar {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #f6efe2;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.link-bar b {
+  color: #f0c36a;
+  margin-right: 6px;
 }
 
 .event-choices {

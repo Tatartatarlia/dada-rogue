@@ -21,6 +21,7 @@ import {
   weaponDps,
   worldCells,
 } from '../game/logic'
+import { activeLinks, linksFor } from '../game/links'
 import { play } from '../game/audio'
 import { ExpansionView, WeaponView } from './WeaponView'
 
@@ -670,10 +671,12 @@ export function ShopScreen({
 
   const bagWeapons = weapons.filter((weapon) => weapon.where === 'bag')
   const shopWeapons = weapons.filter((weapon) => weapon.where === 'shop')
+  const links = activeLinks(bagWeapons)
   const used = bagWeapons.reduce((sum, weapon) => sum + shapeOf(weapon.type, weapon.rotation).length, 0)
   const highestLevel = bagWeapons.reduce((max, weapon) => Math.max(max, weapon.level), 0)
   const dps = bagWeapons.reduce(
-    (sum, weapon) => sum + weaponDps(weapon.type, weapon.level, highestLevel, weapon.bonusAttack ?? 0),
+    (sum, weapon) =>
+      sum + weaponDps(weapon.type, weapon.level, highestLevel, weapon.bonusAttack ?? 0, linksFor(weapon, bagWeapons).intervalScale),
     0,
   )
   const blocked = bagWeapons.some((weapon) => !isBagWeaponLegal(cells, weapons, weapon))
@@ -766,6 +769,16 @@ export function ShopScreen({
             <span>背包 {used}/{cells.length}</span>
             <span>每秒伤害约 {Math.round(dps)}</span>
           </div>
+          {links.length > 0 && (
+            <ul className="link-bar">
+              {links.map((link) => (
+                <li key={link.id}>
+                  <b>{link.name}</b>
+                  {link.text}
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="board-scroll" ref={boardScrollRef}>
             <div
               ref={boardRef}

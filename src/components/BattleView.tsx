@@ -28,6 +28,8 @@ interface Enemy {
   burnDps: number
   burnCrit: number
   burnText: number
+  burnMistRate: number
+  mark: number
   flash: number
   hue: number
   phase: number
@@ -47,6 +49,16 @@ interface Proj {
   level: number
   r: number
   life: number
+  detonate: number
+  splashVuln: number
+  burnMistRate: number
+  markTime: number
+  comboSure: boolean
+  comboExtra: number
+  takeAxeBonus: boolean
+  giveAxeBonus: boolean
+  scatterDamage: number
+  splashRadiusBonus: number
 }
 
 interface Particle {
@@ -120,6 +132,8 @@ export function BattleView({
   hero,
   hpExponent,
   recordNote,
+  hold,
+  onRules,
   onWin,
   onLose,
   onSettle,
@@ -129,6 +143,8 @@ export function BattleView({
   hero: HTMLImageElement | null
   hpExponent: number
   recordNote: string
+  hold: boolean
+  onRules: () => void
   onWin: () => void
   onLose: () => void
   onSettle: () => void
@@ -148,7 +164,7 @@ export function BattleView({
   const settledRef = useRef(false)
 
   useEffect(() => {
-    pausedRef.current = paused
+    pausedRef.current = paused || hold
     heroRef.current = hero
     onWinRef.current = onWin
     onLoseRef.current = onLose
@@ -188,14 +204,29 @@ export function BattleView({
     const combos: Combo[] = []
 
     const bagCritLevel = loadout.reduce((max, item) => Math.max(max, item.level), 0)
-    const guns = loadout.map((item, index) => ({
-      type: item.type,
-      level: item.level,
-      damage: attackOf(item.type, item.level) + (item.bonusAttack ?? 0),
-      interval: CONFIG.weapons[item.type].interval,
-      cooldown: CONFIG.weapons[item.type].interval * (index / Math.max(1, loadout.length)) * 0.8,
-      slot: index,
-    }))
+    const guns = loadout.map((item, index) => {
+      const links = item.links
+      return {
+        type: item.type,
+        level: item.level,
+        damage: attackOf(item.type, item.level) + (item.bonusAttack ?? 0),
+        interval: CONFIG.weapons[item.type].interval * (links?.intervalScale ?? 1),
+        cooldown: CONFIG.weapons[item.type].interval * (index / Math.max(1, loadout.length)) * 0.8,
+        slot: index,
+        detonate: links?.detonate ?? 0,
+        splashVuln: links?.splashVuln ?? 1,
+        burnMistRate: links?.burnMistRate ?? 1,
+        markTime: links?.markTime ?? 0,
+        comboSure: links?.comboSure ?? false,
+        comboExtra: links?.comboExtra ?? 0,
+        takeAxeBonus: links?.takeAxeBonus ?? false,
+        giveAxeBonus: links?.giveAxeBonus ?? false,
+        scatterDamage: links?.scatterDamage ?? 0,
+        splashRadiusBonus: links?.splashRadiusBonus ?? 0,
+        preferMist: links?.preferMist ?? 0,
+      }
+    })
+    let axeGift = 0
 
     const resize = () => {
       const rect = stage.getBoundingClientRect()
@@ -327,6 +358,8 @@ export function BattleView({
             burnDps: 0,
             burnCrit: 1,
             burnText: 0.3,
+            burnMistRate: 1,
+            mark: 0,
             flash: 0,
             hue: (210 - (wave - 1) * 14 + 3600) % 360,
             phase: Math.random() * Math.PI * 2,
@@ -342,7 +375,17 @@ export function BattleView({
         if (gun.cooldown > 0) continue
         const alive = enemies.filter((enemy) => enemy.hp > 0).sort((a, b) => a.x - b.x)
         const count = gun.type === 'dart' ? dartTargets(gun.level) : 1
-        const targets = alive.slice(0, count)
+        let targets = alive.slice(0, count)
+        if (gun.type === 'dart' && gun.preferMist > 0 && alive.length > 0) {
+          const inMist = alive.filter((enemy) => mist(enemy))
+          const outside = alive.filter((enemy) => !mist(enemy))
+          if (gun.preferMist === 2) targets = [...inMist, ...outside].slice(0, count)
+          else if (count > 1) {
+            const first = alive[0]
+            const rest = [...inMist.filter((enemy) => enemy !== first), ...outside.filter((enemy) => enemy !== first)]
+            targets = first ? [first, ...rest].slice(0, count) : []
+          }
+        }
         if (targets.length === 0) {
           gun.cooldown = 0
           continue
@@ -351,7 +394,7 @@ export function BattleView({
         const sx = place.handX
         const sy = place.handY + spread
         const speed = CONFIG.projectileSpeed[gun.type]
-        for (const target of targets) {
+        targets.forEach((target, targetIndex) => {
           const dx = target.x - sx
           const dy = target.y - sy
           const dist = Math.hypot(dx, dy) || 1
@@ -369,9 +412,19 @@ export function BattleView({
             level: gun.level,
             r: CONFIG.projectileRadius,
             life: CONFIG.projectileLife,
+            detonate: gun.detonate,
+            splashVuln: gun.splashVuln,
+            burnMistRate: gun.burnMistRate,
+            markTime: targetIndex === 0 ? gun.markTime : 0,
+            comboSure: gun.comboSure,
+            comboExtra: gun.comboExtra,
+            takeAxeBonus: gun.takeAxeBonus,
+            giveAxeBonus: gun.giveAxeBonus,
+            scatterDamage: gun.scatterDamage,
+            splashRadiusBonus: gun.splashRadiusBonus,
           })
           serial += 1
-        }
+        })
         gun.cooldown = gun.interval
         play('throw')
       }
@@ -423,13 +476,25 @@ export function BattleView({
             else if (burnDps >= enemy.burnDps) enemy.burnDps = burnDps
             enemy.burn = Math.max(enemy.burn, duration)
             enemy.burnCrit = rollCrit(bagCritLevel).multiplier
+            enemy.burnMistRate = proj.burnMistRate
           }
+          if (proj.markTime > 0) enemy.mark = Math.max(enemy.mark, proj.markTime)
+          if (proj.detonate > 0 && enemy.burn > 0 && enemy.hp > 0) {
+            const amp = (mist(enemy)?.taken ?? 1) * enemy.burnCrit
+            const dumped = Math.max(1, Math.round(enemy.burnDps * enemy.burn * amp * proj.detonate))
+            enemy.hp -= dumped
+            enemy.burn *= 1 - proj.detonate
+            if (enemy.burn < 0.05) enemy.burn = 0
+            floatText(enemy.x, enemy.y - enemy.r - 28, `引爆 ${dumped}`, '#ffb15a')
+          }
+          if (proj.giveAxeBonus) axeGift = Math.min(CONFIG.linkSwordGiftCap, axeGift + 1)
           const splashAxe = proj.type === 'axe' ? axeSplash(proj.level) : null
           if (splashAxe) {
+            const reach = CONFIG.axeSplashRadius + proj.splashRadiusBonus
             const nearby = enemies
               .filter((other) => other.id !== enemy.id && other.hp > 0)
               .map((other) => ({ other, d: Math.hypot(other.x - enemy.x, other.y - enemy.y) }))
-              .filter((item) => item.d <= CONFIG.axeSplashRadius)
+              .filter((item) => item.d <= reach)
               .sort((a, b) => a.d - b.d)
               .slice(0, splashAxe.count)
             for (const item of nearby) {
@@ -443,6 +508,16 @@ export function BattleView({
                 strikeText(splash.damage, splash.crit),
                 strikeColor(splash.crit, '#ffd48a'),
               )
+              if (proj.scatterDamage > 0) {
+                const dartHit = strike(item.other, proj.scatterDamage)
+                item.other.hp -= dartHit.damage
+                floatText(
+                  item.other.x,
+                  item.other.y - item.other.r - 18,
+                  strikeText(dartHit.damage, dartHit.crit),
+                  strikeColor(dartHit.crit, '#8ee7f2'),
+                )
+              }
             }
           }
           const radius = proj.type === 'bomb' ? bombRadius(proj.level) : 34
@@ -452,7 +527,7 @@ export function BattleView({
               const ox = other.x - proj.x
               const oy = other.y - proj.y
               if (ox * ox + oy * oy > radius * radius) continue
-              const splash = strike(other, proj.damage * CONFIG.bombSplashRatio)
+              const splash = strike(other, proj.damage * CONFIG.bombSplashRatio * proj.splashVuln)
               other.hp -= splash.damage
               other.flash = 0.1
               floatText(
@@ -471,22 +546,32 @@ export function BattleView({
                 life: CONFIG.bombBurnDuration,
                 max: CONFIG.bombBurnDuration,
                 slowFactor: 1,
-                damageTaken: 1,
-                dps: proj.damage * CONFIG.bombBurnRatio,
+                damageTaken: proj.splashVuln,
+                dps: proj.damage * CONFIG.bombBurnRatio * proj.splashVuln,
                 critMul: rollCrit(bagCritLevel).multiplier,
                 pulse: 0.45,
               })
             }
           }
-          const combo = proj.type === 'sword' ? swordCombo(proj.level) : null
-          if (combo && Math.random() < combo.chance) {
-            combos.push({
-              enemyId: enemy.id,
-              damage: proj.damage,
-              delay: CONFIG.swordComboGap,
-              left: combo.hits - 1,
-            })
-            floatText(enemy.x, enemy.y - enemy.r - 26, '连击', '#9fd0ff')
+          if (proj.type === 'sword') {
+            const combo = swordCombo(proj.level)
+            const marked = proj.comboSure && enemy.mark > 0
+            const gifted = proj.takeAxeBonus ? axeGift : 0
+            if (gifted > 0) axeGift = 0
+            const rolled = combo != null && (marked || Math.random() < combo.chance)
+            let left = 0
+            if (rolled && combo) left = combo.hits - 1 + (marked ? proj.comboExtra : 0) + gifted
+            else if (marked) left = 1 + proj.comboExtra + gifted
+            else if (gifted > 0) left = gifted
+            if (left > 0) {
+              combos.push({
+                enemyId: enemy.id,
+                damage: proj.damage,
+                delay: CONFIG.swordComboGap,
+                left,
+              })
+              floatText(enemy.x, enemy.y - enemy.r - 26, '连击', '#9fd0ff')
+            }
           }
           booms.push({
             x: proj.x,
@@ -525,8 +610,9 @@ export function BattleView({
       for (const enemy of enemies) {
         if (enemy.burn > 0 && enemy.hp > 0) {
           const amp = (mist(enemy)?.taken ?? 1) * enemy.burnCrit
+          const rate = mist(enemy) ? enemy.burnMistRate : 1
           enemy.hp -= enemy.burnDps * amp * dt
-          enemy.burn -= dt
+          enemy.burn -= dt * rate
           enemy.burnText -= dt
           if (enemy.burnText <= 0) {
             enemy.burnText = 0.5
@@ -538,6 +624,7 @@ export function BattleView({
         } else if (enemy.burn < 0) {
           enemy.burn = 0
         }
+        if (enemy.mark > 0) enemy.mark -= dt
         if (enemy.flash > 0) enemy.flash -= dt
       }
 
@@ -746,6 +833,9 @@ export function BattleView({
           ))}
         </div>
         <VolumeControls />
+        <button type="button" className="text-btn" onClick={onRules}>
+          规则
+        </button>
         <button type="button" className="text-btn" onClick={() => setPaused(true)}>
           暂停
         </button>
