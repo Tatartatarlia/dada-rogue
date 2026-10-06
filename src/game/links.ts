@@ -7,9 +7,11 @@ export type LinkId = 'blast' | 'fragile' | 'slowburn' | 'mark' | 'scatter' | 'op
 export interface ActiveLink {
   id: LinkId
   name: string
+  pair: string
   text: string
   edges: number
   full: boolean
+  axeLocked: boolean
 }
 
 interface CatalogEntry {
@@ -17,6 +19,8 @@ interface CatalogEntry {
   types: [WeaponType, WeaponType]
   name: string
   minEdges: number
+  /** 效果要用到斧头溅射。斧头 2 级起才有溅射 */
+  usesAxeSplash?: boolean
   text: (full: boolean) => string
   detail: string
 }
@@ -63,8 +67,9 @@ const CATALOG: CatalogEntry[] = [
     types: ['axe', 'dart'],
     name: '散镖',
     minEdges: 1,
+    usesAxeSplash: true,
     text: (full) => (full ? '斧头溅到的人再吃一发更狠的飞镖' : '斧头溅到的人再吃一发减弱的飞镖'),
-    detail: `斧头贴着飞镖。斧头溅射到的每个敌人，再吃一发飞镖伤害。贴住一条边是那把飞镖攻击的 ${Math.round(CONFIG.linkScatter * 100)}%，贴住两条及以上是 ${Math.round(CONFIG.linkScatterFull * 100)}%。斧头要到 2 级、自己会溅射时才打得出。`,
+    detail: `斧头贴着飞镖。需要斧头达到 2 级才会溅射，这时溅到的每个敌人再吃一发飞镖伤害。贴住一条边是那把飞镖攻击的 ${Math.round(CONFIG.linkScatter * 100)}%，贴住两条及以上是 ${Math.round(CONFIG.linkScatterFull * 100)}%。`,
   },
   {
     id: 'opening',
@@ -79,8 +84,9 @@ const CATALOG: CatalogEntry[] = [
     types: ['axe', 'bomb'],
     name: '震波',
     minEdges: 1,
+    usesAxeSplash: true,
     text: (full) => (full ? '斧头溅得更远，炸弹出手更慢' : '斧头溅得更远，炸弹出手变慢'),
-    detail: `炸弹贴着斧头。斧头的溅射范围额外加上炸弹爆炸半径的 ${Math.round(CONFIG.linkAxeRadiusShare * 100)}%，贴住两条及以上加 ${Math.round(CONFIG.linkAxeRadiusShareFull * 100)}%。作为代价，炸弹的攻击间隔分别变成 ${CONFIG.linkBombSlow} 倍和 ${CONFIG.linkBombSlowFull} 倍。`,
+    detail: `炸弹贴着斧头。需要斧头达到 2 级才会溅射，这时溅射范围额外加上炸弹爆炸半径的 ${Math.round(CONFIG.linkAxeRadiusShare * 100)}%，贴住两条及以上加 ${Math.round(CONFIG.linkAxeRadiusShareFull * 100)}%。作为代价，炸弹的攻击间隔分别变成 ${CONFIG.linkBombSlow} 倍和 ${CONFIG.linkBombSlowFull} 倍，这一项从 1 级起就生效。`,
   },
   {
     id: 'named',
@@ -206,24 +212,37 @@ export function linksFor(weapon: Weapon, bag: Weapon[]): WeaponLinks {
   return links
 }
 
+function pairLabel(entry: CatalogEntry): string {
+  return `${CONFIG.weapons[entry.types[0]].name} · ${CONFIG.weapons[entry.types[1]].name}`
+}
+
 export function activeLinks(bag: Weapon[]): ActiveLink[] {
   const best = new Map<LinkId, ActiveLink>()
+  const axeLevel = new Map<LinkId, number>()
   for (const weapon of bag) {
     for (const touch of touchesOf(weapon, bag)) {
       const full = touch.edges >= 2
+      const axe = weapon.type === 'axe' ? weapon : touch.other.type === 'axe' ? touch.other : null
+      if (axe && touch.entry.usesAxeSplash) {
+        axeLevel.set(touch.entry.id, Math.max(axeLevel.get(touch.entry.id) ?? 0, axe.level))
+      }
       const current = best.get(touch.entry.id)
       if (current && current.edges >= touch.edges) continue
       best.set(touch.entry.id, {
         id: touch.entry.id,
         name: touch.entry.name,
+        pair: pairLabel(touch.entry),
         text: touch.entry.text(full),
         edges: touch.edges,
         full,
+        axeLocked: false,
       })
     }
   }
   return CATALOG.flatMap((entry) => {
     const link = best.get(entry.id)
-    return link ? [link] : []
+    if (!link) return []
+    link.axeLocked = entry.usesAxeSplash === true && (axeLevel.get(entry.id) ?? 0) < 2
+    return [link]
   })
 }

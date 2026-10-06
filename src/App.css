@@ -587,6 +587,11 @@ h2 {
   margin-right: 6px;
 }
 
+.link-bar span {
+  color: #9eb0c8;
+  margin-right: 6px;
+}
+
 .event-choices {
   display: flex;
   flex-direction: column;

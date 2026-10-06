@@ -774,7 +774,8 @@ export function ShopScreen({
               {links.map((link) => (
                 <li key={link.id}>
                   <b>{link.name}</b>
-                  {link.text}
+                  <span>{link.pair}</span>
+                  {`${link.text}${link.axeLocked ? '（斧头未达到2级，尚未解锁）' : ''}`}
                 </li>
               ))}
             </ul>
